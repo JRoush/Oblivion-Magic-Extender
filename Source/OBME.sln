@@ -1,0 +1,53 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 10.00
+# Visual Studio 2008
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "OBME.Loader", "Loader\OBME.Loader.vcproj", "{D4DDA734-7E93-4581-8F82-32BB738F69FE}"
+	ProjectSection(ProjectDependencies) = postProject
+		{7EE2E9AC-D007-4DCC-B70B-224600B6E65D} = {7EE2E9AC-D007-4DCC-B70B-224600B6E65D}
+	EndProjectSection
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "COEF", "F:\Game Sources\Elder Scrolls IV Oblivion\My Mods\COEF\COEF.vcproj", "{7EE2E9AC-D007-4DCC-B70B-224600B6E65D}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "OBME", "OBME\OBME.vcproj", "{A181A689-675B-4E1E-85EF-B70DD2E9CB87}"
+	ProjectSection(ProjectDependencies) = postProject
+		{D4DDA734-7E93-4581-8F82-32BB738F69FE} = {D4DDA734-7E93-4581-8F82-32BB738F69FE}
+		{7EE2E9AC-D007-4DCC-B70B-224600B6E65D} = {7EE2E9AC-D007-4DCC-B70B-224600B6E65D}
+	EndProjectSection
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug_CS|Win32 = Debug_CS|Win32
+		Debug_Game|Win32 = Debug_Game|Win32
+		Release_CS|Win32 = Release_CS|Win32
+		Release_Game|Win32 = Release_Game|Win32
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{D4DDA734-7E93-4581-8F82-32BB738F69FE}.Debug_CS|Win32.ActiveCfg = Debug|Win32
+		{D4DDA734-7E93-4581-8F82-32BB738F69FE}.Debug_CS|Win32.Build.0 = Debug|Win32
+		{D4DDA734-7E93-4581-8F82-32BB738F69FE}.Debug_Game|Win32.ActiveCfg = Debug|Win32
+		{D4DDA734-7E93-4581-8F82-32BB738F69FE}.Debug_Game|Win32.Build.0 = Debug|Win32
+		{D4DDA734-7E93-4581-8F82-32BB738F69FE}.Release_CS|Win32.ActiveCfg = Release|Win32
+		{D4DDA734-7E93-4581-8F82-32BB738F69FE}.Release_CS|Win32.Build.0 = Release|Win32
+		{D4DDA734-7E93-4581-8F82-32BB738F69FE}.Release_Game|Win32.ActiveCfg = Release|Win32
+		{D4DDA734-7E93-4581-8F82-32BB738F69FE}.Release_Game|Win32.Build.0 = Release|Win32
+		{7EE2E9AC-D007-4DCC-B70B-224600B6E65D}.Debug_CS|Win32.ActiveCfg = Debug|Win32
+		{7EE2E9AC-D007-4DCC-B70B-224600B6E65D}.Debug_CS|Win32.Build.0 = Debug|Win32
+		{7EE2E9AC-D007-4DCC-B70B-224600B6E65D}.Debug_Game|Win32.ActiveCfg = Debug|Win32
+		{7EE2E9AC-D007-4DCC-B70B-224600B6E65D}.Debug_Game|Win32.Build.0 = Debug|Win32
+		{7EE2E9AC-D007-4DCC-B70B-224600B6E65D}.Release_CS|Win32.ActiveCfg = Release|Win32
+		{7EE2E9AC-D007-4DCC-B70B-224600B6E65D}.Release_CS|Win32.Build.0 = Release|Win32
+		{7EE2E9AC-D007-4DCC-B70B-224600B6E65D}.Release_Game|Win32.ActiveCfg = Release|Win32
+		{7EE2E9AC-D007-4DCC-B70B-224600B6E65D}.Release_Game|Win32.Build.0 = Release|Win32
+		{A181A689-675B-4E1E-85EF-B70DD2E9CB87}.Debug_CS|Win32.ActiveCfg = Debug_CS|Win32
+		{A181A689-675B-4E1E-85EF-B70DD2E9CB87}.Debug_CS|Win32.Build.0 = Debug_CS|Win32
+		{A181A689-675B-4E1E-85EF-B70DD2E9CB87}.Debug_Game|Win32.ActiveCfg = Debug_Game|Win32
+		{A181A689-675B-4E1E-85EF-B70DD2E9CB87}.Debug_Game|Win32.Build.0 = Debug_Game|Win32
+		{A181A689-675B-4E1E-85EF-B70DD2E9CB87}.Release_CS|Win32.ActiveCfg = Release_CS|Win32
+		{A181A689-675B-4E1E-85EF-B70DD2E9CB87}.Release_CS|Win32.Build.0 = Release_CS|Win32
+		{A181A689-675B-4E1E-85EF-B70DD2E9CB87}.Release_Game|Win32.ActiveCfg = Release_Game|Win32
+		{A181A689-675B-4E1E-85EF-B70DD2E9CB87}.Release_Game|Win32.Build.0 = Release_Game|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal

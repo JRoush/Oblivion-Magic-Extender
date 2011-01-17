@@ -1,0 +1,12 @@
+Magic Resistances
+=================
+-   AlwaysApplies = (SEFF from magic item w/ SEFFAlwaysApplies) || (Spell\Power\LesserPower cast by Player on Self)
+-   Abilities & Diseases & (Effects w/ AlwaysApplies) always have resistance factor 1.0
+-   For Actor targets:
+    -   Edible Ingredients, wearable enchantments, and Magic Items w/ no hostile effects are immune to resistances
+    -   If magic item resistAV == effect item resistAV, then just use one : (1 - EffectResistance)
+    -   Otherwise, product of (1 - ResistMagic/ResistPoison) * (1 - EffectResistance)
+-   Resistance Factor is never applied to ingredient effects
+-   Resist Disease is apparently applied during disease transfer, not on application
+
+-   Resistance applies *after* spell absorb/reflect, bit it *does* apply.

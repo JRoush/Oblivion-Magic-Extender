@@ -1,0 +1,32 @@
+Effect Handler:
+================
+Common Effect Handler:
+    -   handler code
+    -   handler name
+    -   create() - static, allocates & initializes object
+    
+EffectSetting/EffectItem Effect Handler:
+Attached to parent object via an additional pointer field, since parent is not polymorhpic
+    -   pointer to parent object
+    -   Save() - serialization to mod file
+    -   Load() - serialization to mod file
+    -   Link() - serialization to mod file
+    -   GetDialogTemplate() - [CS only] get template of subdialog
+    -   DlgMsgCallback()    - [CS only] handle dialog events
+    -   SetInDialog()       - [CS only] set dialog controls from parameters
+    -   GetFromDialog()     - [CS only] get fields from dialog controls
+    -   CopyFrom()
+    -   CompareTo()
+    
+EffectSetting Handler only:
+
+
+EffectItem Handler only:    
+    -   {Menu Functions}    - [Game Only] create & manage menu for spellmaking/enchanting/etc
+    -   FullDescriptor()    - combine effect name w/ magntiude, duration, area, range, etc to get full description
+    -   GetEffectCost()     - combine effect setting cost fields with magnitude,duration,area,range,caster & handler specific params to get raw effect cost
+    -   SetEffectCost()     - set magnitude, duration, area, range, or handler params to produce the requested cost
+    
+ActiveEffect Effect Handler:
+Additional base class of new active effects
+Serialization is handles by ActiveEffect virtual methods

@@ -1,0 +1,150 @@
+Expanded penalty/reward system:
+===============================
+State Factors:
+--------------
+-   Skill  
+-   Skill Mastery
+-   Fatigue ratio to max
+-   Current Fatigue
+-   Armor coverage
+-   Current Magicka
+-   Base Cost
+-   casting Fraction (length of time spent casting / length of single casting animation)
+-   transforming fraction (length of time spent transforming / length of single casting animation)
+-   Silence
+-   Misc Cost
+-   Sneak
+-   Run
+-   Stagger
+-   Knocked
+-   Paralyzed
+
+Computed Factors:
+------------------
+-   Efficiency
+        skill * const + const (DEP)
+        DiminishedReturns[skill] (RSH)
+-   Actual Cost
+        base cost * efficiency               
+-   Fatigue Cost
+        const
+-   Effectiveness
+        armor coverage
+        fatigue ratio
+        casting penalty (RSH)
+-   Magicka Factor
+        base cost / const[skill mastery] (DEP)
+        actual cost / const[sneak, run, skill mastery] (RSH)  
+-   Max projectile range 
+        minimum rangeEx of OnTarget effect items with NoMaxRange false       
+        
+Results:
+------------------
+-   Spell Disabled (once, cannot begin casting)
+        spell is in cooldown
+        Silence 
+        current magicka < actual cost 
+        magicka factor > 1 (DEP)
+        current fatigue < fatigue cost (RSH)
+        effectiveness <= 0 (RSH)
+        misc costs not met (RSH)
+        targeted spell while underwater
+        range to target > telekinesis range (DEP)
+        range to target > max projectile range, for spells w/ a projectile that require cursor to be over a target (RSH)
+        repeat of bound item (DEP?)   
+        stacking limit for spell or one of spell effects requires
+-   Fatigue lost (once per cast stage)
+        fatigue cost
+-   Misc requirements lost (once per cast stage)
+        misc cost
+-   Magicka lost (continuous, magicka damage to caster)
+        actual cost * casting fraction
+-   Spell Failure (continuous, casting fails, some fraction of magicka refunded)
+        effectiveness < random chance (RSH)
+        current magicka < actual cost * casting fraction (RSH)
+        staggered
+        knocked
+        paralyzed
+-   Overcasting (cumulative, apply overcasting effects increasing (exponentially?))
+        casting fraction * magicka factor > 1
+-   Spell Potency (once, modify effective magicka of post-cast spell)
+        cumulative transforming fraction (penalty for long transformations)
+        effectiveness
+        cumulative casting fraction * actual cost (charging powers up spell)
+        cumulative casting fraction (bonus for long charging periods)
+-   Spell Application (once, modify effective magicka of spell when applied to target)
+        reflection, absorption, resistance, penetration
+        detection (sneak attack bonus for hostile spells)  
+-   Experience (once)
+        const (DEP)
+        base cost * casting fraction (RSH)
+        apply modifiers if same spell was just cast
+-   Cooldown (once)
+        only for greater powers (DEP)
+-   'Overcasting' Penalties        
+    -   Stop running
+    -   Unsneak
+    -   Extra experience
+    -   Effects taken from a levelled spell list and scaled exponentially by overcasting ratio
+        Scaling should be such that a spell at ~150% cutoff is a once-a-day,use-all-your-potions-to-recover 
+        ordeal, and a spell at ~200% cutoff is instant death to the caster.
+        -   Damage to Skills & Attributes
+        -   Damage to Health, Fatigue, Magicka
+        -   Impairment (paralysis, silence, stunted magicka)
+        -   Damage to effectiveness, efficiency, magicka scale
+        
+Projectile:
+-----------------
+    -   Once spawned, tracks distance traveled.  Apply changes to path for homing/gravity/reflection/etc.
+        Dimninish effect strength as distance increases, and (?) reduce size to provide feedback
+        When intensity reaches zero, display a 'fizzle' FX - projectile implioding or something
+            
+Continuous casting:
+===================
+-	Split casting action into 4 stages : 
+    -	Warmup (Cast button down, once started whole stage must complete)
+        -   Check Spell Disabled 
+        -   apply Fatigue & Misc Requirements lost
+        -	Caster animation (e.g. arm brought to chest) & spell VFX
+        -	apply Magicka Lost, check Spell Failure, check Overcasting
+    -	Charge/Transformation (Warmup completed)
+        -   Charging (charging is enabled && cast button held down)
+            -	apply Magicka Lost, check Spell Failure, check Overcasting, apply new spell stats
+        -   Transforming (transformation is enabled && transformation in progress)
+            -   apply new spell stats, trading magicka at a fixed rate (~ 100% magicka tradeoff over one casting length?)
+        -	No caster animation, extend spell charging VFX ?  
+        -   Charging and Transforming may be done concurrently
+    -	Cast (Charge completed, once started whole stage must complete)
+        -	flag for repeat if (recasting enabled && cast button held down)
+        -	Caster animation (e.g. arm thrown out), first time only
+            same time frame as caster animation, even if it's not played
+        -   apply Spell Potency
+        -   apply Experience
+        -	create & launch projectile or apply effects to target if no projectile
+        -   if flagged for repeat:
+            -   Check Spell Disabled 
+            -   apply Fatigue & Misc Requirements lost
+            -	Caster animation (e.g. arm brought to chest) & spell VFX
+            -	apply Magicka Lost, check Spell Failure, check Overcasting
+    -	Cooldown:
+        -   apply Cooldown
+        -   clear any overrides, temp spells, etc.
+        -	Caster animation (e.g. arm returned to side), animation may vary if actor is blocking
+-	Once released, the cast button can't be pressed again until the Cooldown stage is completed
+-	player has until end of warmup stage to release cast button for a 'normal' (no charging/recasting) cycle	
+
+
+Player Casting Controls:
+========================
+-	HUD element for current MagicItem:
+	-	Mag/Dur/Area/Range/Etc meters (hide if unused)
+	-	Magicka penalty meter: shows seriousness of side effects being applied (hide for non-spells)
+-   use block button to enable charging / recasting
+-   use a 'transform' key to enable spell tranforms:
+    - trade magnitude for duration  & visa versa
+    - trade magnitude for area  & visa versa
+    - switch between self/touch & touch/target (trade magnitude)
+    - trade magnitude for penetration, possibly for other meta magic properties
+-   HUD targeting indicator, for Telekenesis-like targeting
+    Don't use targeting cursor or display name/weight/etc. for activatable objects like telekinsis
+    Useful for feedback on projectile range, and for selecting targets for homing projectiles

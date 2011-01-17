@@ -1,0 +1,249 @@
+Active Effect:
+==============
+-   State Info:
+    -   Time Elapsed
+    -   Magnitude
+    -   Duration
+    -   Hit Effects
+    -   Type-specific info necessary to remove, and (as much as possible) to apply and update
+        This data is not stored by default; apparently under the assumption that it can be fetched from the source effect/item
+        as needed.  Source items can be changed by mod alteration or scripts; so AEs need to be reasonably autonomous once created.
+        Most AEs can be extended to hold extra data, but parent classes (ActiveEffect, ModAVEffect, CommandEffect, SummonEffect) can't do so without
+        breaking the game's code for their children.  For these parent classes, extra data must be attached in some other way.
+        Possibility: Patch the apparently unused virtual function at 0x30 to return a pointer to extra data at the end of the object
+-   State Flags:
+    -   Applied: after call to ApplyEFfect() virtual method
+    -   Terminated: effect is scheduled for removal
+        - possible RSH extension - additional values to signal that effect is not to be destroyed, just suspended
+    -   Removed: after call to RemoveEffect() virtual method
+    -   Flags: seems likely that most bits are unused.  May be possible to use top word as an index into a seperate array of extra data.
+-   Source:
+    -   Magic Item
+    -   Magic Type: cached for some reason
+    -   Effect Item
+    -   Caster
+    -   Bound Object
+    -   Type Code (RSH): i.e. handler code.  necessary b/c its possible for effects to change handlers  Needs extra-data storage.
+-   Target:
+    -   Target
+-   Unkown:
+    -   Unk2C
+    
+New Mechanics:
+==============
+-	When an active effect is replaced by a newer, equivalent, effect then some fraction of lost magicka is "reclaimed" & applied to new effect.
+-   Allow a new 'suspendeded' states for AEs.  When in these states the actual effects of the AE are not applied, but it's timer continues to increment.  
+    Useful for 'intervention' type reversible dispels and strongest-effect-only stacking behavior.  
+    
+Changes to Source objects while Active Effect exists:
+=====================================================
+Changes to state of caster, magic item, effect item, and effect setting fall into four categories:
+-   Independent: property is duplicated and stored seperately on Active Effect, changes to or deletion of source have no effect
+    This includes all properties that are used only once, at the moment the AE is created.
+    -   Magnitude
+    -   Duration
+-   Ignored: property is not used by Active Effects at all.  
+    This includes things like casting FX, projectile properties, etc.
+-   Atomic use: property is used once at some later point in the AE lifecycle, or successive uses don't assume a consistent value
+    These properties can be 'safely' changed and will be reflected immediately by AE
+    -   Caster death: tracked by some handlers
+    -   Most other properties - names, flags, costs, etc.
+-   Integral: property is referenced multiple times by AE, and *assumed to be constant* inbetween
+    Changes to these properties will cause the universe to implode
+    Ideally, everything on this list should be moved to the 'Independent' category somehow
+    -   Source handler (see file format notes)
+    -   Effect Item index in Magic item (see file format notes) - this can't be fixed directly
+    -   Source Effect Setting (see file format notes)
+    -   'Recovers' flag
+    -   Magic item type (for ModAV effects on abilities)
+    -   Handler specific properties: Detrimental flag, etc.     
+    
+File Format Notes:
+==================
+-   Vanilla Loading:
+    -   Load base active effect data & resolve magic item formID & effect item index
+        If formID or index is bad, discard ActiveEffect record
+    -   Determine source effect item, create appropriate ActiveEffect
+        If creation fails, CTD (investigate)
+    -   Use virtual methods of created active effect to finish loading
+    -   Call link & postlink (after all AEs loaded?)
+-   OBME loading:
+    -   Check for auxiliary record (disguised as a dummy AE record).
+        If found:
+        -   Load handler code & create appropriate ActiveEffect
+        -   Load base active effect data, and efit special index
+        -   Resolve magic item formID & effect item index into pointers
+            If resolution fails, or effect item has no EffectSetting (because it's from a removed mod):
+                -   If AE record contains enough info to safely remove, add to target and flag for removal
+                -   Otherwise, simply drop active effect
+    -   Use virtual methods of created ActiveEffect to finish loading
+    -   Call link & postlink, after all AEs loaded
+-   OBME saving:
+    -   Save an auziliary record containing handler code, mgefCode, special efit index, OBME version, & other extra data
+        Savegame tracks number of active effects on each target, need to adjust accordingly
+    -   Save active effect as in vanilla
+-	AEs refer to their source by MagicItem formID and EffectItem index.  This index may change if EffectItems are dropped during loading,
+    so ActiveEffects are easily corrupted by missing EffectSettings.  Have to Save mgefCode of source item and the index of the item 
+    *among items with that code*.  That is, if the magic item has an SEFF, and FIDG, and then another SEFF, the three ActiveEffects 
+    should store {SEFF,0}, {FIDG,0}, {SEFF,1}, respectively.  
+    This hinges on the fact that either all effect items with that mgef are invalid, or none are.
+-   Active effects don't store their type.  So if handler changes to something incompatible with saved record - disaster.  Have to save 
+    handler code in auxiliary data.
+    
+Indiv. Active Effects:
+======================
+-   ApplyMagicItem:
+    -   applies the specified item to the target, scaling magnitudes by master effect magnitude
+    -   ParamA: magic item formID
+    -   FlagB will be set if efitParam is used, in which case mgefParam may contain a leveled list of valid choices.
+    -   useful for effects that combine two other effects (like the elemental shields), or effects that take advantage of the metamagic
+        available to magic items (like selective targeting, chaining, etc).
+    -   Flags C & D determine application type:
+        -   Hidden: a single 'master' Active Effect is created, which creates & internally tracks the individual active effects from the item
+                    duration of master effect is used instead of individual effect item durations
+        -   Simple: the item is applied as though it had just be cast by the caster, with resistance checks & AI notifications, etc.
+                    master effect creates no ActiveEffects & ActiveEffects from item are not tied to original spell at all
+        -   Expanded: master effect is replaced by item's effects in local temporary magic item.       
+    -   Aura:
+        -   applies magic item exactly once to all targets in range, and any that enter range
+        -   use master effect magnitude as range? can't scale magic item effects
+            perhaps use efitParam as range? requires new hooks into magicka cost & qualified name calculation
+            Param: an AV to track total effective range, a la Detect Life?
+        -   cannot use 'Hidden' application type
+        -   use *time remaining* on master effect rather than duration of individual effect items            
+        -   implementation 1 - collision trigger planes
+            implementation 2 - scan nearby targets every frame
+        -   'Recovers' flag indicates that aura item should be dispelled from affected targets when they leave the aura's range or the aura
+            itself is removed.  requires tracking of all affected targets
+-   ScriptEffect:
+	-	ParamA: script formID
+    -   FlagA indicates that the effect is treated like a vanilla SEFF (at the moment, this just affects the ScriptEffectAlwaysApplies behavior)
+    -   If efixParam is nonzero, it is used as the script formid.  Otherwise, it's the contents of ParamA.
+    -   The efitParam is left for custom use by other mods or the script author.
+        FlagC & FlagD indicate efitParam should be resolved as FormID, or MgefCode, respectively
+    -   NOTE: there is a bug in the execution of scripts, where an effect script active on a summoned creature is stripped of it's variables if the 
+        player changes cells.  The variables are actually gone - not just reset to zero once, but every frame.  This may be only for magic effect
+        scripts, only for scripts not on the player, only for scripts on summoned objects (which are temporary references?), or some combination
+        of the three. This needs testing, and fixing if possible.
+    -   Fix script function GetScriptEffectIndex, GetNthEffectItemCode, GetMagicEffectCode that takes ref as param, AddEffectItem
+    -   Change script runner to run *all* blocks in magic effect scripts?
+-   Summon:    
+    -   FlagA is set if the handler should attempt to 'scale' the summoned object proportional to the effect magnitude
+	-	ParamA: formID of summoned object
+    -   SummonReference(RSH):
+        -   by default, place the summoned object wherever the caster is aiming at that instant, or near caster if aim is bad
+        -	SummonActor:
+            -	scale level.  use leveled lists in inventory and spell list to scale weapons, spells, and bonuses
+            -	limit based on creature type / NPC race? class?
+            -   FlagD: configure AI to ally with caster        
+	-	SummonBoundObject:
+		-	scale damage,durability,quality,quantity, and potency of enchantment / effects list
+		-	add directly to inventory, automatically equip, and don't allow caster to remove
+		-	bound weapon enchantments have no cost
+    -   Others?
+-   Banish(RSH):
+    -   if target is a summon, attempt to dispel the summon effect from the caster
+        if target is an ordinary actor, attempt to dispel to all of the their summon effects
+        otherwise, do nothing
+-   ModifyActorValue:
+    -   modifies specified part of specified AV
+    -   magnitude is points or percentage to add/subtract per second
+	-	Param: actor value
+    -   FlagA is set if effect reduces AV rather than increasing it
+    -   FlagC is set if magnitude is a percentage rather than raw points
+    -   FlagB is set if avCode may be overridden in spellmaking menu
+    -   ParamA is default avCode.  Use the invalid code to indicate 'None'. 
+    -   efitParam is actual avCode.  Use the invalid code to indicate 'None'. 
+    -   Low word of ParamB - each bit enables a group of AVs as valid choices (see Actor.h for enumeration of AV groups) 
+    -   High word of ParamB - which modifier to affect, including a flag to use 'Base' modifier for ability affects on player
+    -	Absorb:
+        -   All changes to target's AV's are mirrored but opposite on caster
+-   EnvironmentalDamage:
+    -   Applies damage depending on environmental conditions of target location?
+    -   Weather, time of day, etc?
+    -	SunDamage:
+-	Paralysis
+-	Shield
+    - Elemental Shields(DEP): replace with ApplyMagicItem
+	- repurpose an unused AV for a static damage reduction, like armor in SC ?
+-	Calm
+-	Frenzy
+-	Demoralize
+-	CommandActor
+    -   Temporarily modifies target AI to be allied with caster
+    -	CommandCreature: replace w/ just CommandActor?
+    -	CommandHumanoid: replace w/ just CommandActor?
+-	Reanimate:
+    -   Temporarily revives a corpse  & allies it with caster.
+    -   Does this go under Summon, or Command?
+-	TurnUndead: replace w/ plain old demoralize?  what's the difference?
+-	Chameleon
+-	Invisibility
+-	Vampirism: depricate?  what does this do, exactly?
+-	DetectLife:
+    -   Applies an effect shader to living actors, magnitude is range
+    -   scale shader intensity based on distance from target?
+-   VisionShader(RSH)
+    -   applies a shader to the vision of the target
+    -   magnitude is strength of shader?
+    -   Probably need to interface or depend on OBGE for this to work
+    -   Param: identifier of shader to use, not sure how to do that just yet
+    -	NightEye:
+-	Light
+    -   magnitude is strength of light.  
+    -   ParamA: fromid of light to use
+ -	Darkness
+    -   same as light, more or less
+-	Dispel:
+    -   hostile dispel targets only effects from beneficial items, beneficial dispel targets only efects from hostile items, 
+        neutral dispel targets everything.
+    -   Param: Target type - magic effect, effect handler, magic item, or LL of magic items
+    -   Param: Target - mgefCode, ehCode, magic item formID, or LL formID
+    -   Flag: AtmoicDispel -   if clear, dispel either removes completely or doesn't touch
+                                if set, dispel reduces effective magicka cost of ActiveEffect
+            note that some effects parse & use their magnitudes/area/range only once.
+            Dispel should focus mainly on reducing duration.  If an effect has no duration or is persistent, have to
+            remove and re-apply at a lower magnitude
+    -   Flag: distribute magnitude among effects/items (vs. each effect/item gets whole magnitude)
+    -   Flag: apply to all effects from an item (vs. dispelling them individually)
+    -   Param: bitmask of magic item types to dispel.  used only if magic item or leveled magic item is not provided
+    -   Flag: use magic item cost rather than sum of current active effect costs.  used only if AtomicDispel & Atomic Magic Item are set
+    -   Flags: use caster skill modifier for OnSelf/OnTouch/OnTarget effects.  used only if using magic item cost.
+    -   Dispel:
+    -   Cure(DEP) - deprecate in favor of Dispel
+-   ModifyInventoryItems(RSH):
+    -   with the introduction of inventory-walking functions in obse v19, new effects in this vein are more straightforward to do with
+        the script effect handler.
+    -	DisintegrateArmor:
+    -	DisintegrateWeapon:
+-	Lock
+    -   lock locks with difficulty == magnitude
+-	Open
+    -   unlock locks up to magnitude in difficulty.
+-	SoulTrap: 
+        -   refill caster's soulgems.  Combine deathevent with ModifyInventoryItems
+-	Telekinesis:
+    -   allow remote activation on certain objects (nonloading doors, containers, locks, etc)?
+        is it possible to grab acotrs or other animated objects?
+    - 	if nothing held, targeted item is grabbed & pulled in at exponential speed to normal activating range
+        if something is held, recasting thows the item w/ force proportional to magnitude of spell
+        Do ballistic objects to damage?  SOme mods implement this, may be a good addition to the physics system
+-   Shockwave(RSH)
+-   TimeSlow(RSH)
+-   SetWeather(RSH)
+    -   ParamA is formID of weather to set to
+    -   ParamB is time of day?
+-   Teleportation(RSH)
+    -   transport target to specified location
+        Vanilla dungeons and worldspaces were designed under the assumption that the player could only move on foot or by swimming.
+        Short distance teleportation will break some dungeon puzzles & make things like long narrow ledges much less dangerous.
+        This is done by other mods, though, and is not too serious.  Long distance teleports will allow player to leave restricted 
+        areas like M.Cameron's paradise or Jail & return at will.  This is very serious, and means that teleport effects *should*
+        have restrictions on crossing cell boundaries (like leaving a dungeon) and respect fast travel rules.  
+        For best effect, try to follow game's pathing routines (whatever it uses to lay out red quest
+        markers) to plot path to objective.
+    -   magnitude is maximum distance.  
+    -   Param: destination marker
+    -   Flag: use current crosshairs/combat target as destination
+    -   Flags: respect of fast-travel rules, crossing cell boundaries, etc.
+-   Nullgrav(RSH)

@@ -31,6 +31,9 @@ extern HMODULE hModule;
 
 namespace OBME {
 
+// global method for returning small enumerations as booleans
+inline bool BoolEx(UInt8 value) {return *(bool*)&value;}
+
 // memory patch & hook addresses
 memaddr EffectSetting_Vtbl                      (0x00A32B14,0x0095C914);
 memaddr EffectSetting_Create                    (0x004165E0,0x0);
@@ -355,8 +358,8 @@ bool EffectSetting::LoadForm(TESFile& file)
 }
 void EffectSetting::SaveFormChunks()
 {
-    bool requiresOBME = RequiresObmeMgefChunks();
-    _VMESSAGE("Saving effect '%s' {%08X} '%s'/%08X (requires OBME chunks = %i)", name.c_str(), mgefCode, GetEditorID(), formID, requiresOBME); 
+    int requiresOBME = RequiresObmeMgefChunks();
+    _VMESSAGE("Saving %s (requires OBME chunks = %i)", GetDebugDescEx().c_str(), requiresOBME); 
     gLog.Indent();
 
     // initialize form record & save editor id    
@@ -442,21 +445,28 @@ void EffectSetting::SaveFormChunks()
 }
 void EffectSetting::LinkForm()
 {
-    _VMESSAGE("Linking effect '%s' {%08X} '%s'/%08X", name.c_str(), mgefCode, GetEditorID(), formID); 
+    _VMESSAGE("Linking %s", GetDebugDescEx().c_str()); 
     ::EffectSetting::LinkForm();
     // link handler object
     GetHandler().LinkHandler();
 }
+void EffectSetting::GetDebugDescription(BSStringT& output)
+{
+    output.Format("MGEF form '%s'/%08X {%4.4s:%08X} '%s'",GetEditorID(),formID,&mgefCode,mgefCode,name.c_str());
+}
 void EffectSetting::CopyFrom(TESForm& copyFrom)
-{  
+{      
+    _VMESSAGE("Copying %s",GetDebugDescEx().c_str());
+
     // convert form to mgef
     EffectSetting* mgef = (EffectSetting*)dynamic_cast<::EffectSetting*>(&copyFrom);
     if (!mgef)
     {
-        _WARNING("Attempted copy from '%s' form '%s'/%08X",TESForm::GetFormTypeName(copyFrom.GetFormType()),copyFrom.GetEditorID(),copyFrom.formID);
+        BSStringT desc;
+        copyFrom.GetDebugDescription(desc);        
+        _WARNING("Attempted copy from %s",desc.c_str());
         return;
-    }
-    _DMESSAGE("Copying ...");
+    }    
 
     // copy effect code
     if (mgefCode != mgef->mgefCode)
@@ -465,9 +475,26 @@ void EffectSetting::CopyFrom(TESForm& copyFrom)
         else if (mgef->formFlags & TESForm::kFormFlags_Temporary)
         {
             // other form is temporary, but this one is not
-            EffectSettingCollection::collection.RemoveAt(mgefCode); // unregister current code
-            mgefCode = mgef->mgefCode; // copy code
-            if (IsMgefCodeValid(mgefCode)) EffectSettingCollection::collection.SetAt(mgefCode,this); // register under new code
+            bool proceed = true;
+            #ifndef OBLIVION
+            // prompt user to confirm new code
+            BSStringT prompt;
+            prompt.Format("The effect code of '%s' (%08X) has been changed from {%08X} to {%08X}.\n",GetEditorID(),formID,mgefCode,mgef->mgefCode);
+            prompt += "Magic items like spells & ingredients, scripts, and various other objects use this code.";
+            prompt += "For this reason it is recommended not to change the code unless it is not in use by anything.\n\n";
+            prompt += "Proceed with new code (any other changes to the effect will be applied regardless)?";
+            proceed = (IDYES == MessageBox(dialogHandle,prompt.c_str(),"Confirm changed Effect Code",MB_YESNO|MB_DEFBUTTON2|MB_ICONINFORMATION|MB_APPLMODAL));
+            #endif
+            if (proceed)
+            {
+                // user confirms
+                EffectSettingCollection::collection.RemoveAt(mgefCode); // unregister current code
+                mgefCode = mgef->mgefCode; // copy code
+                if (IsMgefCodeValid(mgefCode)) EffectSettingCollection::collection.SetAt(mgefCode,this); // register under new code
+                #ifndef OBLIVION
+                // TODO - notify all EffectItemLists and EffectSettings that use this code that it has changed
+                #endif
+            }
         }
     }
 
@@ -488,21 +515,37 @@ void EffectSetting::CopyFrom(TESForm& copyFrom)
     SetHandler(newHandler);
 }
 bool EffectSetting::CompareTo(TESForm& compareTo)
-{    
+{        
+    _DMESSAGE("Comparing %s",GetDebugDescEx().c_str());
+
+    // define failure codes - all of which must evaluate to boolean true
+    enum
+    {
+        kCompareSuccess         = 0,
+        kCompareFail_General    = 1,
+        kCompareFail_Polymorphic,
+        kCompareFail_ResistAV,
+        kCompareFail_Counters,
+        kCompareFail_BaseMgef,
+        kCompareFail_ObmeFlags,
+        kCompareFail_Handler,
+    };
+
     // convert form to mgef
     EffectSetting* mgef = (EffectSetting*)dynamic_cast<::EffectSetting*>(&compareTo);
     if (!mgef)
     {
-        _WARNING("Attempted compare to '%s' form '%s'/%08X",TESForm::GetFormTypeName(compareTo.GetFormType()),compareTo.GetEditorID(),compareTo.formID);
-        return true;
-    }
-    _DMESSAGE("Comparing ...");
+        BSStringT desc;
+        compareTo.GetDebugDescription(desc);    
+        _WARNING("Attempted compare to %s",desc.c_str());
+        return BoolEx(kCompareFail_Polymorphic);
+    }    
 
     // compare resistances
-    if (GetResistAV() != mgef->GetResistAV()) return true; // resistances don't match
+    if (GetResistAV() != mgef->GetResistAV()) return BoolEx(kCompareFail_ResistAV); // resistances don't match
 
     // compare counter effects
-    if (numCounters != mgef->numCounters) return true; // counter effect count doesn't match
+    if (numCounters != mgef->numCounters) return BoolEx(kCompareFail_Counters); // counter effect count doesn't match
     if (numCounters)
     {
         bool* counterFound = new bool[numCounters];
@@ -519,10 +562,10 @@ bool EffectSetting::CompareTo(TESForm& compareTo)
                     break; // move to next effect
                 }
             }
-            if (!found)  return true; // unmatched counter effect
+            if (!found)  return BoolEx(kCompareFail_Counters); // unmatched counter effect
         }
     }
-    
+   
     // cache resistance -  sidestep issues with different 'invalid' codes
     UInt32 _resistAV = resistAV; 
     resistAV = mgef->resistAV;
@@ -537,13 +580,15 @@ bool EffectSetting::CompareTo(TESForm& compareTo)
     resistAV = _resistAV;
     numCounters = _numCounters; 
     counterArray = _counterArray;
-    if (noMatch) return true; // other base fields did not match    
+    if (noMatch) return BoolEx(kCompareFail_BaseMgef); // other base fields did not match    
 
     // compare flags
-    if (mgefObmeFlags != mgef->mgefObmeFlags) return true;
+    if (mgefObmeFlags != mgef->mgefObmeFlags) return BoolEx(kCompareFail_ObmeFlags);
 
     // compare handler
-    return GetHandler().CompareTo(mgef->GetHandler());
+    if (GetHandler().CompareTo(mgef->GetHandler())) return BoolEx(kCompareFail_Handler);
+
+    return BoolEx(kCompareSuccess);
 }
 #ifndef OBLIVION
 static const UInt32 kTabCount = 4;
@@ -642,7 +687,7 @@ void ShowTabSubwindow(HWND dialog, INT index, bool show)
 }
 void EffectSetting::InitializeDialog(HWND dialog)
 {
-    _DMESSAGE("");
+    _DMESSAGE("Initializing MGEF dialog ...");
     HWND ctl;
 
     // build tabs
@@ -745,13 +790,11 @@ bool EffectSetting::DialogMessageCallback(HWND dialog, UINT uMsg, WPARAM wParam,
     {
     case WM_USERCOMMAND:
     case WM_COMMAND:
-        UInt32 commandCode;
-        commandCode = wParam >> 0x10;
-        switch ((UInt16)wParam) // control ID
+    {
+        UInt32 commandCode = HIWORD(wParam);
+        switch (LOWORD(wParam))  // switch on control id
         {
-        case IDC_MGEF_DYNAMICMGEFCODE:
-            // dynamic code checkbox clicked
-            _DMESSAGE("Dynamic code CM %i", commandCode);   
+        case IDC_MGEF_DYNAMICMGEFCODE:  // Dynamic mgefCode checkbox
             if (commandCode == BN_CLICKED)
             {
                 _VMESSAGE("Dynamic code check clicked");  
@@ -772,8 +815,7 @@ bool EffectSetting::DialogMessageCallback(HWND dialog, UINT uMsg, WPARAM wParam,
                 return false;     
             }
             break;
-        case IDC_MGEF_ADDCOUNTER:  
-            _DMESSAGE("Add counter effect CM %i", commandCode);
+        case IDC_MGEF_ADDCOUNTER:     // Add Counter Effect button
             if (commandCode == BN_CLICKED)
             {
                 _VMESSAGE("Add counter effect");  
@@ -788,8 +830,7 @@ bool EffectSetting::DialogMessageCallback(HWND dialog, UINT uMsg, WPARAM wParam,
                 return false;
             }
             break;
-        case IDC_MGEF_REMOVECOUNTER:
-            _DMESSAGE("Remove counter effect CM %i", commandCode);
+        case IDC_MGEF_REMOVECOUNTER:    // Remove Counter effect button
             if (commandCode == BN_CLICKED)
             {
                 _VMESSAGE("Remove counter effect");  
@@ -801,29 +842,26 @@ bool EffectSetting::DialogMessageCallback(HWND dialog, UINT uMsg, WPARAM wParam,
                 return false;
             }
             break;
-        case IDC_MGEF_HANDLER:
-            _DMESSAGE("Handler Combo CM %i", commandCode);
+        case IDC_MGEF_HANDLER:  // Handler selection combo box
+        {
             if (commandCode == CBN_SELCHANGE)
             {
                 _VMESSAGE("Handler changed");
                 ctl = GetDlgItem(dialog,IDC_MGEF_HANDLER);
                 // create a new handler if necessary
-                UInt32 ehCode;
-                ehCode = (UInt32)TESComboBox::GetCurSelData(ctl);
+                UInt32 ehCode = (UInt32)TESComboBox::GetCurSelData(ctl);
                 if (ehCode != GetHandler().HandlerCode()) SetHandler(EffectSettingHandler::Create(ehCode,*this));
                 // change dialog templates if necessary
                 DialogExtraSubwindow* extraSubwindow = (DialogExtraSubwindow*)GetWindowLong(ctl,GWL_USERDATA);
                 if (extraSubwindow && GetHandler().DialogTemplateID() != extraSubwindow->dialogTemplateID)
                 {
-                    _DMESSAGE("Destroying current handler subwindow <%p> ...",extraSubwindow->subwindow);
                      ExtraDataList_RemoveData(TESDialog::GetDialogExtraList(dialog),extraSubwindow,true);
                      extraSubwindow = 0;
                 }
                 // create a new subwindow if necessary
                 if (GetHandler().DialogTemplateID() && !extraSubwindow)
                 {                    
-                    TESDialog::Subwindow* subwindow = new TESDialog::Subwindow;                    
-                    _DMESSAGE("Creating new handler subwindow <%p> ... ",subwindow);
+                    TESDialog::Subwindow* subwindow = new TESDialog::Subwindow;               
                     // set subwindow position relative to parent dialog
                     subwindow->hDialog = dialog;
                     subwindow->hInstance = (HINSTANCE)hModule;
@@ -834,12 +872,19 @@ bool EffectSetting::DialogMessageCallback(HWND dialog, UINT uMsg, WPARAM wParam,
                     subwindow->position.y = rect.top;
                     ScreenToClient(dialog,&subwindow->position); 
                     // build subwindow control list (copy controls from tab dialog template into parent dialog)
-                    _DMESSAGE("Attaching handler subwindow to dialog ...");
                     TESDialog::BuildSubwindow(GetHandler().DialogTemplateID(),subwindow);
                     // add subwindow extra data to parent
-                    extraSubwindow = TESDialog::AddDialogExtraSubwindow(dialog,GetHandler().DialogTemplateID(),subwindow);                    
+                    extraSubwindow = TESDialog::AddDialogExtraSubwindow(dialog,GetHandler().DialogTemplateID(),subwindow);
+                    // hide controls if handler tab is nto selected
+                    int cursel = TabCtrl_GetCurSel(GetDlgItem(dialog,IDC_MGEF_TABS));
+                    if (cursel < 0 || kTabTemplateID[cursel] != IDD_MGEF_HANDLER)
+                    {                    
+                        for (BSSimpleList<HWND>::Node* node = &subwindow->controls.firstNode; node && node->data; node = node->next)
+                        {
+                            ShowWindow(node->data, false);
+                        }
+                    }
                 }
-                _DMESSAGE("Caching handler subwindow data <%p> ...",extraSubwindow);
                 // store current dialog template in handler selection window UserData
                 SetWindowLong(ctl,GWL_USERDATA,(UInt32)extraSubwindow);
                 // set handler in dialog
@@ -848,15 +893,15 @@ bool EffectSetting::DialogMessageCallback(HWND dialog, UINT uMsg, WPARAM wParam,
             }
             break;
         }
+        }
         break;
-    case WM_NOTIFY:       
-        NMHDR* nmhdr;
-        nmhdr = (NMHDR*)lParam;
-        switch (nmhdr->idFrom)
+    }
+    case WM_NOTIFY:  
+    {
+        NMHDR* nmhdr = (NMHDR*)lParam;  // extract notify message info struct
+        switch (nmhdr->idFrom)  // switch on control id
         {
-        case IDC_MGEF_TABS:
-            // Notification from tab control
-            _DMESSAGE("Tab Control NM %i",nmhdr->code);
+        case IDC_MGEF_TABS: // main tab control
             if (nmhdr->code == TCN_SELCHANGING)
             {
                 // current tab is about to be unselected
@@ -875,11 +920,12 @@ bool EffectSetting::DialogMessageCallback(HWND dialog, UINT uMsg, WPARAM wParam,
         }
         break;
     }
+    }
     return ::EffectSetting::DialogMessageCallback(dialog,uMsg,wParam,lParam,result);
 }
 void EffectSetting::SetInDialog(HWND dialog)
 {
-    _DMESSAGE("");
+    _VMESSAGE("Setting %s",GetDebugDescEx().c_str());
     if (!dialogHandle)
     {
         // first time initialization
@@ -891,11 +937,21 @@ void EffectSetting::SetInDialog(HWND dialog)
     char buffer[0x50];
     
     // GENERAL
-        // effect code
+    {
+        // effect code box
+        bool codeEditable = !IsMgefCodeVanilla(mgefCode) && // can't change vanilla effect codes 
+                            (formFlags & TESForm::kFormFlags_FromActiveFile) > 0 && // code only editable if effect is in active file
+                            (fileList.Empty() || // no override files (newly created effect) ...
+                                (fileList.Count() == 1 && // .. or only a single override file, the active file
+                                fileList.firstNode.data == TESDataHandler::dataHandler->fileManager.activeFile)
+                             );
+        ctl = GetDlgItem(dialog,IDC_MGEF_MGEFCODE);            
+        sprintf_s(buffer,sizeof(buffer),"%08X", mgefCode);
+        SetWindowText(ctl,buffer);
+        EnableWindow(ctl,!IsMgefCodeDynamic(mgefCode) && codeEditable);
+        // dynamic effect code checkbox
         CheckDlgButton(dialog,IDC_MGEF_DYNAMICMGEFCODE,IsMgefCodeDynamic(mgefCode));
-        _DMESSAGE("Sending check box click cmd ...");         
-        SendNotifyMessage(dialog, WM_USERCOMMAND,(BN_CLICKED << 0x10) | IDC_MGEF_DYNAMICMGEFCODE,  // trigger BN_CLICKED event
-                                    (LPARAM)GetDlgItem(dialog,IDC_MGEF_DYNAMICMGEFCODE));
+        EnableWindow(GetDlgItem(dialog,IDC_MGEF_DYNAMICMGEFCODE),codeEditable);    
         // school
         TESComboBox::SetCurSelByData(GetDlgItem(dialog,IDC_MGEF_SCHOOL),(void*)school);
         // effect item description callback
@@ -905,13 +961,17 @@ void EffectSetting::SetInDialog(HWND dialog)
         TESListView::ClearItems(ctl);
         for (int i = 0; i < numCounters; i++)
         {
-            TESListView::InsertItem(ctl,EffectSetting::LookupByCode(counterArray[i]));
+            void* countereff = EffectSetting::LookupByCode(counterArray[i]);
+            if (countereff) TESListView::InsertItem(ctl,countereff);
+            else _WARNING("Unrecognized counter effect '%4.4s' {%08X}",&counterArray[i],counterArray[i]);
         }
         ListView_SortItems(ctl,TESFormIDListView::FormListComparator,GetWindowLong(ctl,GWL_USERDATA)); // (re)sort items
         // counter effect add list
         TESComboBox::SetCurSel(GetDlgItem(dialog,IDC_MGEF_COUNTEREFFECTCHOICES),0);
+    }
 
     // DYNAMICS
+    {
         // Cost
         TESDialog::SetDlgItemTextFloat(dialog,IDC_MGEF_BASECOST,baseCost);
         TESDialog::SetDlgItemTextFloat(dialog,IDC_MGEF_DISPELFACTOR,0/*TODO*/);
@@ -938,8 +998,10 @@ void EffectSetting::SetInDialog(HWND dialog)
         TESDialog::SetDlgItemTextFloat(dialog,IDC_MGEF_PROJRANGEBASE,0/*TODO*/);
         TESDialog::SetDlgItemTextFloat(dialog,IDC_MGEF_PROJECTILESPEED,projSpeed);
         TESComboBox::SetCurSelByData(GetDlgItem(dialog,IDC_MGEF_PROJECTILETYPE),(void*)GetProjectileType());
+    }
 
     // FX
+    {
         // Light, Hit + Enchant shaders
         TESComboBox::SetCurSelByData(GetDlgItem(dialog,IDC_MGEF_LIGHT),light);
         TESComboBox::SetCurSelByData(GetDlgItem(dialog,IDC_MGEF_EFFECTSHADER),effectShader);
@@ -949,21 +1011,24 @@ void EffectSetting::SetInDialog(HWND dialog)
         TESComboBox::SetCurSelByData(GetDlgItem(dialog,IDC_MGEF_BOLTSOUND),boltSound);
         TESComboBox::SetCurSelByData(GetDlgItem(dialog,IDC_MGEF_HITSOUND),hitSound);
         TESComboBox::SetCurSelByData(GetDlgItem(dialog,IDC_MGEF_AREASOUND),areaSound);   
+    }
 
     // HANDLER
+    {
         TESComboBox::SetCurSelByData(GetDlgItem(dialog,IDC_MGEF_HANDLER),(void*)GetHandler().HandlerCode()); 
         SendNotifyMessage(dialog, WM_USERCOMMAND,(CBN_SELCHANGE << 0x10) | IDC_MGEF_HANDLER,  // trigger CBN_SELCHANGED event
                                     (LPARAM)GetDlgItem(dialog,IDC_MGEF_HANDLER));
+    }
 
     // FLAGS
-        for (int i = 0; i < 0x40; i++) CheckDlgButton(dialog,IDC_MGEF_FLAGEXBASE + i,GetFlag(i));
+    for (int i = 0; i < 0x40; i++) CheckDlgButton(dialog,IDC_MGEF_FLAGEXBASE + i,GetFlag(i));
 
     // BASES
     ::TESFormIDListView::SetInDialog(dialog);
 }
 void EffectSetting::GetFromDialog(HWND dialog)
 {
-    _DMESSAGE("");
+    _VMESSAGE("Getting %s",GetDebugDescEx().c_str());
 
     // call base method - retrieves most vanilla effectsetting fields, and calls GetFromDialog for components
     // will fail to retrieve AssocItem and Flags, as the control IDs for these fields have been changed
@@ -974,26 +1039,31 @@ void EffectSetting::GetFromDialog(HWND dialog)
     char buffer[0x50];
 
     // GENERAL
+    {
         // effect code
         GetWindowText(GetDlgItem(dialog,IDC_MGEF_MGEFCODE),buffer,sizeof(buffer));
         mgefCode = strtoul(buffer,0,16);  // TODO - validation?
         // effect item description callback
         /*TODO = */ TESComboBox::GetCurSelData(GetDlgItem(dialog,IDC_MGEF_DESCRIPTORCALLBACK));
         // counter effects
-        ctl = GetDlgItem(dialog,IDC_MGEF_COUNTEREFFECTS);
-        if (counterArray) MemoryHeap::FormHeapFree(counterArray);  // clear current counter array
+        ctl = GetDlgItem(dialog,IDC_MGEF_COUNTEREFFECTS);        
+        if (counterArray) {MemoryHeap::FormHeapFree(counterArray); counterArray = 0;} // clear current counter array
         if (numCounters = ListView_GetItemCount(ctl))
         {      
             // build array of effect codes
             counterArray = (UInt32*)MemoryHeap::FormHeapAlloc(numCounters * 4);
+            gLog.Indent();
             for (int i = 0; i < numCounters; i++)
             {
                 EffectSetting* mgef = (EffectSetting*)TESListView::GetItemData(ctl,i);
-                if (mgef) counterArray[i] = mgef->mgefCode;
+                counterArray[i] = mgef->mgefCode;
             }
+            gLog.Outdent();
         }
+    }
 
     // DYNAMICS
+    {
         // Cost
         /*TODO = */ TESDialog::GetDlgItemTextFloat(dialog,IDC_MGEF_DISPELFACTOR);
         /*TODO = */ TESComboBox::GetCurSelData(GetDlgItem(dialog,IDC_MGEF_GETCOSTCALLBACK));
@@ -1013,11 +1083,14 @@ void EffectSetting::GetFromDialog(HWND dialog)
         /*TODO = */ TESDialog::GetDlgItemTextFloat(dialog,IDC_MGEF_PROJRANGEEXP);
         /*TODO = */ TESDialog::GetDlgItemTextFloat(dialog,IDC_MGEF_PROJRANGEMULT);
         /*TODO = */ TESDialog::GetDlgItemTextFloat(dialog,IDC_MGEF_PROJRANGEBASE);      
+    }
 
     // HANDLER
+    {
         UInt32 ehCode = (UInt32)TESComboBox::GetCurSelData(GetDlgItem(dialog,IDC_MGEF_HANDLER));
         if (ehCode != GetHandler().HandlerCode()) SetHandler(EffectSettingHandler::Create(ehCode,*this));          
         GetHandler().GetFromDialog(dialog);
+    }
 
     // FLAGS
     for (int i = 0; i < 0x40; i++) {if (GetDlgItem(dialog,IDC_MGEF_FLAGEXBASE + i)) { SetFlag(i,IsDlgButtonChecked(dialog,IDC_MGEF_FLAGEXBASE + i)); }}
@@ -1025,12 +1098,12 @@ void EffectSetting::GetFromDialog(HWND dialog)
 }
 void EffectSetting::CleanupDialog(HWND dialog)
 {
-    _DMESSAGE("");
+    _DMESSAGE("Cleanup MGEF Dialog");
     ::EffectSetting::CleanupDialog(dialog);
 }
 void EffectSetting::SetupFormListColumns(HWND listView)
 {
-    _DMESSAGE("");
+    _DMESSAGE("Initializing columns for LV %p",listView);
     // call base function - clears columns & adds EditorID, FormID, & Name column
     ::EffectSetting::SetupFormListColumns(listView);
     // add EffectCode column
@@ -1073,6 +1146,14 @@ int EffectSetting::CompareInFormList(const TESForm& compareTo, int compareBy)
     }
 }
 #endif
+// methods: debugging
+BSStringT EffectSetting::GetDebugDescEx()
+{
+    // potentially inefficient, but worth it for the ease of use
+    BSStringT desc;
+    GetDebugDescription(desc);
+    return desc;
+}
 // conversion
 UInt8 EffectSetting::GetDefaultHostility(UInt32 mgefCode)
 {
@@ -1142,47 +1223,55 @@ UInt8 EffectSetting::GetDefaultHostility(UInt32 mgefCode)
 }
 bool EffectSetting::RequiresObmeMgefChunks()
 {
+    // define return codes - must evaluate to boolean
+    enum
+    {
+        kOBMENotRequired        = 0,
+        kReqOBME_General        = 1,
+        kReqOBME_MgefCode,
+        kReqOBME_School,
+        kReqOBME_ResistAV,
+        kReqOBME_EditorID,
+        kReqOBME_CounterEffects,
+        kReqOBME_ObmeFlags, // except 'Beneficial'
+        kReqOBME_BeneficialFlag,
+        kReqOBME_Handler,
+    };
+
     // mgefCode - must be vanilla
-    if (!IsMgefCodeVanilla(mgefCode)) return true;
-    _DMESSAGE("Code is Vanilla");
+    if (!IsMgefCodeVanilla(mgefCode)) return BoolEx(kReqOBME_MgefCode);
 
     // school - must be a vanilla magic school
-    if (school > Magic::kSchool__MAX) return true;
-    _DMESSAGE("School is Vanilla");
+    if (school > Magic::kSchool__MAX) return BoolEx(kReqOBME_School);
 
     // resistanceAV - must be a vanilla AV
-    if (GetResistAV() > ActorValues::kActorVal__MAX && GetResistAV() != ActorValues::kActorVal__NONE) return true;
-    _DMESSAGE("ResistAV is Vanilla");
+    if (GetResistAV() > ActorValues::kActorVal__MAX && GetResistAV() != ActorValues::kActorVal__NONE) return BoolEx(kReqOBME_ResistAV);
     
     // editorID - must be the mgefCode reinterpreted as a string
     char codestr[5] = {{0}};
     *(UInt32*)codestr = mgefCode;  
-    if (GetEditorID() == 0 || strcmp(GetEditorID(),codestr) != 0) return true;
-    _DMESSAGE("EditorID is Vanilla");
+    if (GetEditorID() == 0 || strcmp(GetEditorID(),codestr) != 0) return BoolEx(kReqOBME_EditorID);
 
     // counter array - can contain no non-vanilla effects
     for (int i = 0; counterArray && i < numCounters; i++)
     {
-        if (!IsMgefCodeVanilla(counterArray[i])) return true;
+        if (!IsMgefCodeVanilla(counterArray[i])) return BoolEx(kReqOBME_CounterEffects);
     }
-    _DMESSAGE("Counter Effects are Vanilla");
-
     // OBME flags (all except beneficial must be zero)
-    if (mgefObmeFlags & ~kMgefObmeFlag_Beneficial) return true;
-    _DMESSAGE("Unused OBME flags are Vanilla");
+    if (mgefObmeFlags & ~kMgefObmeFlag_Beneficial) return BoolEx(kReqOBME_ObmeFlags);
 
     // beneficial flag - must be zero unless default hostility is beneficial
-    if ((mgefObmeFlags & kMgefObmeFlag_Beneficial) && GetDefaultHostility(mgefCode) != Magic::kHostility_Beneficial) return true;
-    _DMESSAGE("Beneficial flag is Vanilla");
+    if ((mgefObmeFlags & kMgefObmeFlag_Beneficial) && GetDefaultHostility(mgefCode) != Magic::kHostility_Beneficial) return BoolEx(kReqOBME_BeneficialFlag);
 
     // Effect Handler - must differ from default handler object
     UInt32 defHandlerCode = EffectSettingHandler::GetDefaultHandlerCode(mgefCode);
-    if (defHandlerCode != GetHandler().HandlerCode()) return true;
+    if (defHandlerCode != GetHandler().HandlerCode()) return BoolEx(kReqOBME_Handler);
     EffectSettingHandler* defHandler = EffectSettingHandler::Create(defHandlerCode,*this);
     bool handlerNoMatch = defHandler->CompareTo(GetHandler());
     delete defHandler;
-    _DMESSAGE("Handler is %i vanilla",!handlerNoMatch);
-    return handlerNoMatch;
+    if (handlerNoMatch) return BoolEx(kReqOBME_Handler);
+
+    return BoolEx(kOBMENotRequired);
 }
 // fields
 inline bool EffectSetting::GetFlag(UInt32 flagShift) const
@@ -1263,16 +1352,7 @@ void EffectSetting::SetProjectileType(UInt32 newType)
 EffectSetting* EffectSetting::defaultVFXEffect     = 0;
 EffectSetting* EffectSetting::diseaseVFXEffect     = 0;
 EffectSetting* EffectSetting::poisonVFXEffect      = 0;
-// effect table
-bool EffectSetting::IsMgefCodeValid(UInt32 mgefCode)
-{
-    return (mgefCode != kMgefCode_None && mgefCode != kMgefCode_Invalid);
-}
-bool EffectSetting::IsMgefCodeDynamic(UInt32 mgefCode)
-{
-    return (mgefCode & kMgefCode_DynamicFlag);
-}
-
+// effect codes
 class VanillaEffectsSet : public std::set<UInt32>
 {
 public:
@@ -1448,6 +1528,14 @@ bool EffectSetting::IsMgefCodeVanilla(UInt32 mgefCode)
     if (vanillaEffectsSet.find(mgefCode) != vanillaEffectsSet.end()) return true;
     return false;
 }
+bool EffectSetting::IsMgefCodeValid(UInt32 mgefCode)
+{
+    return (mgefCode != kMgefCode_None && mgefCode != kMgefCode_Invalid);
+}
+bool EffectSetting::IsMgefCodeDynamic(UInt32 mgefCode)
+{
+    return (mgefCode & kMgefCode_DynamicFlag);
+}
 UInt32 EffectSetting::GetUnusedDynamicCode()
 {
     // step up through dynamic code space & return first unused code
@@ -1507,7 +1595,7 @@ bool EffectSetting::ResolveModMgefCode(UInt32& mgefCode, TESFile& file)
 }
 // effect handler
 EffectSettingHandler& EffectSetting::GetHandler()
-{
+{    
     if (!effectHandler)
     {
         // this effect has no handler, create a default handler
@@ -1519,28 +1607,23 @@ EffectSettingHandler& EffectSetting::GetHandler()
 void EffectSetting::SetHandler(EffectSettingHandler* handler)
 {
     if (effectHandler) delete effectHandler;    // clear current handler
-    if (!handler)
-    {
-        // no handler specified, create a default handler
-        handler = EffectSettingHandler::Create(EffectHandlerBase::GetDefaultHandlerCode(mgefCode),*this);
-        if (!handler) handler = EffectSettingHandler::Make(*this);  // default handler not yet implemented - should never happen in release version
-    }
     effectHandler = handler;
 }
 // constructor, destructor
 EffectSetting::EffectSetting()
 {    
-    _DMESSAGE("Constructing Mgef <%p>",this);    
+    _VMESSAGE("Constructing Mgef <%p>",this);    
     if (static bool needsVtblOverride = true)
     {
         needsVtblOverride = false;
-        _VMESSAGE("Patching game/CS vtbl ...");
+        _MESSAGE("Patching Game/CS EffectSetting vtbl ...");
         // runs first time an OBME::EffectSetting is constructed, & patches game vtbl
         memaddr obmeVtbl((UInt32)memaddr::GetObjectVtbl(this));
         memaddr oDtor(0x10,0x34);       EffectSetting_Vtbl.SetVtblEntry(oDtor,obmeVtbl.GetVtblEntry(oDtor)); // ~EffectSetting();
         memaddr oLoadForm(0x1C,0x40);   EffectSetting_Vtbl.SetVtblEntry(oLoadForm,obmeVtbl.GetVtblEntry(oLoadForm)); // LoadForm
         memaddr oSaveForm(0x24,0x48);   EffectSetting_Vtbl.SetVtblEntry(oSaveForm,obmeVtbl.GetVtblEntry(oSaveForm)); // SaveForm
         memaddr oLinkForm(0x6C,0x70);   EffectSetting_Vtbl.SetVtblEntry(oLinkForm,obmeVtbl.GetVtblEntry(oLinkForm)); // LinkForm
+        memaddr oDebugDesc(0x74,0x78);  EffectSetting_Vtbl.SetVtblEntry(oDebugDesc,obmeVtbl.GetVtblEntry(oDebugDesc)); // GetDebugDescription
         memaddr oCopyFrom(0xB4,0xB8);   EffectSetting_Vtbl.SetVtblEntry(oCopyFrom,obmeVtbl.GetVtblEntry(oCopyFrom)); // CopyFrom
         memaddr oCompareTo(0xB8,0xBC);  EffectSetting_Vtbl.SetVtblEntry(oCompareTo,obmeVtbl.GetVtblEntry(oCompareTo)); // CompareTo
         #ifndef OBLIVION
@@ -1565,31 +1648,31 @@ EffectSetting::EffectSetting()
     resistAV = ActorValues::kActorVal__NONE;    // standardize the 'no resistav' value
     mgefCode = kMgefCode_None;
     // initialize new fields
-    effectHandler = 0; SetHandler(0); // default handler
+    effectHandler = 0;
     mgefObmeFlags = 0x0;
     loadFlags = 0xFFFFFFFF;   // all fields 'loaded'
 }
 EffectSetting::~EffectSetting()
 {
-    _DMESSAGE("Destructing Mgef <%p>",this);
+    _VMESSAGE("Destructing Mgef <%p>",this);
     if (effectHandler) delete effectHandler;
 }
 
 // hooks
 EffectSetting* EffectSetting_Create_Hndl()
 {
-    _DMESSAGE("Creating Mgef ...");
+    _VMESSAGE("Creating Mgef ...");
     return new EffectSetting;
 }
 EffectSetting* EffectSettingCollection_Add_Hndl(UInt32 mgefCode, const char* name, UInt32 school, float baseCost, UInt32 param, 
                                                 UInt32 mgefFlags, UInt32 resistAV, UInt16 numCounters, UInt32 firstCounter)       
 {   
-    // Note: this function doesn't perform integrity checks on the mgefFlags like the vanilla code
-    // clear existing effect
-    EffectSetting* mgef = (EffectSetting*)EffectSettingCollection::LookupByCode(mgefCode);
-    if (mgef) delete mgef;
+    /* 
+        This function doesn't perform integrity checks on the mgefFlags like the vanilla code
+        It also assumes - requires - that the provided effect code is not currently in use.
+    */
     // create new effect
-    mgef = new EffectSetting; 
+    EffectSetting* mgef = new EffectSetting; 
     mgef->mgefCode = mgefCode;
     EffectSettingCollection::collection.SetAt(mgefCode,mgef);  // add new effect to table
     // set editor name
@@ -1605,14 +1688,11 @@ EffectSetting* EffectSettingCollection_Add_Hndl(UInt32 mgefCode, const char* nam
     mgef->mgefFlags = mgefFlags;    
     mgef->SetResistAV(resistAV); // standardize 'invalid' avCodes
     mgef->SetCounterEffects(numCounters,&firstCounter);
-    mgef->numCounters = numCounters;
+    mgef->numCounters = numCounters; // SetCounterEffects is bugged, doesn't set numCounters properly
     // get default hostility
     mgef->SetHostility(EffectSetting::GetDefaultHostility(mgefCode));
-    // get default handler
-    mgef->SetHandler(0);
     // done
-    _DMESSAGE("Adding Mgef to Collection: '%s' {%08X} '%4.4s'/%08X w/ host %i, handler '%s'", 
-        name, mgefCode, namebuffer, mgef->formID, mgef->GetHostility(),mgef->GetHandler().HandlerName());
+    _DMESSAGE("Added to Collection: %s w/ host %i, handler '%s'", mgef->GetDebugDescEx().c_str(), mgef->GetHostility(),mgef->GetHandler().HandlerName());
     return mgef;
 }
 void _declspec(naked) TESForm_CreateMgef_Hndl(void)
@@ -1639,12 +1719,13 @@ void _declspec(naked) TESDataHandler_AddForm_JumpHndl(void)
         sub     esp, __LOCAL_SIZE
         mov     mgef, esi
     }
-    _DMESSAGE("mgef <%p>",mgef);
     if (!EffectSetting::IsMgefCodeValid(mgef->mgefCode))
     {
         // mgef needs to be given a valid code
+        // happens when a new mgef is created & added to the handler without being given a valid code first
         mgef->mgefCode = EffectSetting::GetUnusedDynamicCode();
     }
+    _DMESSAGE("Adding new MGEF {%08X}",mgef->mgefCode);
     EffectSettingCollection::collection.SetAt(mgef->mgefCode,mgef);
     __asm
     {
@@ -1699,7 +1780,7 @@ void _declspec(naked) TESDataHandler_LoadMgef_Hndl(void)
                 if (form)
                 {
                     // formid belongs to an existing object that is not MGEF or has a different effect code
-                    _ERROR("Cannot load MGEF record into existing %s Form '%s'/%08X",
+                    _ERROR("Cannot load MGEF record into existing %s form '%s' (%08X)",
                         TESForm::GetFormTypeName(form->GetFormType()),form->GetEditorID(),form->formID);
                 }
                 // lookup in table
@@ -1784,7 +1865,7 @@ void EffectSetting::Initialize()
     // hook creation of vanilla magic effects, so we can cache them
     EffectSettingCollection_AddLast_Hook.WriteRelJump(&CacheVanillaEffects);
 
-    // TODO - hook loading of palyer's known effect list to resolve effect codes
+    // TODO - hook loading of player's known effect list to resolve effect codes
 
     // patch creation of MGEF dialog in CS - replace CS module instance with local module instance
     TESCS_CreateMgefDialog_Patch.WriteData32((UInt32)&hModule);

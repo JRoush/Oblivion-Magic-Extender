@@ -156,6 +156,7 @@ public:
     _LOCAL /*01C/040*/ virtual bool         LoadForm(TESFile& file); 
     _LOCAL /*024/048*/ virtual void         SaveFormChunks();
     _LOCAL /*06C/070*/ virtual void         LinkForm();
+    _LOCAL /*074/078*/ virtual void         GetDebugDescription(BSStringT& output);
     _LOCAL /*0B4/0B8*/ virtual void         CopyFrom(TESForm& form); 
     _LOCAL /*0B8/0BC*/ virtual bool         CompareTo(TESForm& compareTo);
     #ifndef OBLIVION
@@ -167,6 +168,9 @@ public:
     _LOCAL /*---/130*/ virtual void         GetFormListDispInfo(void* displayInfo);
     _LOCAL /*---/134*/ virtual int          CompareInFormList(const TESForm& compareTo, int compareBy);
     #endif
+
+    // methods: debugging
+    _LOCAL BSStringT        GetDebugDescEx();
 
     // methods: conversion
     _LOCAL static UInt8     GetDefaultHostility(UInt32 mgefCode);  // returns vanilla hostility for vanilla effect codes, neutral for new effects
@@ -181,10 +185,10 @@ public:
     _LOCAL void             SetResistAV(UInt32 newResistAV); // standardizes 'invalid' value
     _LOCAL void             SetProjectileType(UInt32 newType); // not present in game
 
-    // methods: effect table
+    // methods: effect codes
+    _LOCAL static bool      IsMgefCodeVanilla(UInt32 mgefCode); // returns true if code is defined in vanilla oblivion
     _LOCAL static bool      IsMgefCodeValid(UInt32 mgefCode); // returns true if code is valid  
     _LOCAL static bool      IsMgefCodeDynamic(UInt32 mgefCode); // returns true if code is dynamically assigned
-    _LOCAL static bool      IsMgefCodeVanilla(UInt32 mgefCode); // returns true if code is defined in vanilla oblivion
     _LOCAL static UInt32    GetUnusedDynamicCode(); // checks table & returns an unused dynamic mgef code
     _LOCAL static UInt32    GetUnusedStaticCode(); // checks table & returns an unused static mgef code
     _LOCAL static bool      ResolveModMgefCode(UInt32& mgefCode, TESFile& file); // does form-id like resolution on code from mod file          

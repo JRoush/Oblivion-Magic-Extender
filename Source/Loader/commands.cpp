@@ -252,13 +252,20 @@ void CSEPrintCallback(const char* message, const char* prefix)
     commands recognized by this parser take the form 'solutionname commandName [args...]'
     the only command for this example plugin is 'Description', which prints a description of the plugin to the log
 */
-    const char tag[] = "OBME "; // CSE console commands to this plugin must begin with this 'tag'
-    if (!message || _strnicmp(message,tag,sizeof(tag)-1) != 0) return; // output is not a command targeted to this plugin
-    message += sizeof(tag)-1;
+    char* context = 0;
+    if (!message || _stricmp(strtok_s(const_cast<char*>(message)," \t",&context),"OBME") != 0) return; // output is not a command targeted to this plugin
     _DMESSAGE("%s %s",prefix,message);
     
-    if (_stricmp(message,"description") == 0)    // 'Description' command
+    const char* command = strtok_s(0," \t",&context);
+    const char* argA = strtok_s(0," \t",&context);
+    const char* argB = strtok_s(0," \t",&context);
+    const char* argC = strtok_s(0," \t",&context);
+    if (_stricmp(command,"description") == 0)    // 'description' command
     {
-        //_MESSAGE("%s",g_submoduleInfc->Description());
+        _MESSAGE("%s",g_obmeIntfc->privateCommands.Description());
+    }
+    else if (_stricmp(command,"test") == 0)    // 'test' command
+    {        
+        g_obmeIntfc->privateCommands.OBMETest(0,argA,argB,argC);
     }
 }

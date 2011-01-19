@@ -2,72 +2,93 @@
 
 #include "OBME/EffectSetting.h"
 #include "OBME/EffectHandlers/EffectHandler.h"
-#include "OBME/EffectHandlers/GenericEffectHandler.h"
-#include "OBME/EffectHandlers/ValueModifierEffectHandler.h"
+#include "OBME/EffectHandlers/ValueModifierEffect.h"
 
 #include <map>
 
 namespace OBME {
 
-/*************************** EffectHandlerBase ********************************/
+/*************************** EffectHandler ********************************/
 // memory patch & hook addresses
 memaddr ActiveEffect_RegisterLastCreateFunc_Hook    (0x009FEDF7,0x0);
 // global map of handlers, initialized by dll loader
 struct HandlerEntry
-{
+{ 
     // members
     UInt32              _ehCode;
     const char*         _ehName;              
-    typedef EffectSettingHandler*   (* ESHCreateFunc)(EffectSetting& effect);
-    ESHCreateFunc       _eshCreateFunc;
-    typedef EffectItemHandler*      (* EIHCreateFunc)(EffectItem& item);
-    EIHCreateFunc       _eihCreateFunc;
+    MgefHandler*        (*_CreateMgefHandler)(EffectSetting& effect);
+    EfitHandler*        (*_CreateEfitHandler)(EffectItem& item);
     #ifdef OBLIVION
-    typedef ActiveEffectHandler*    (* AEHCreateFunc)(MagicCaster* caster, MagicItem* magicItem, EffectItem* effectItem);
-    AEHCreateFunc       _aehCreateFunc;
+    ::ActiveEffect*     (*_CreateActiveEffect)(MagicCaster* caster, MagicItem* magicItem, EffectItem* effectItem);
     #endif
-    // methods - constructor
-    /*
-    #ifndef OBLIVION
-        HandlerEntry(UInt32 ehCode, const char* ehName, ESHCreateFunc eshCreateFunc, EIHCreateFunc eihCreateFunc, AEHCreateFunc aehCreateFunc) 
-            : _ehCode(ehCode), _ehName(ehName), _eshCreateFunc(eshCreateFunc), _eihCreateFunc(eihCreateFunc), _aehCreateFunc(aehCreateFunc) {}
-        #define HANDLERENTRY(code,name,ESHCreateFunc,EIHCreateFunc,AEHCreateFunc) HandlerEntry(code,name,ESHCreateFunc,EIHCreateFunc,AEHCreateFunc)
-    #else
-        HandlerEntry(UInt32 ehCode, const char* ehName, ESHCreateFunc eshCreateFunc, EIHCreateFunc eihCreateFunc) 
-            : _ehCode(ehCode), _ehName(ehName), _eshCreateFunc(eshCreateFunc), _eihCreateFunc(eihCreateFunc) {}
-        #define HANDLERENTRY(code,name,ESHCreateFunc,EIHCreateFunc,AEHCreateFunc) HandlerEntry(code,name,ESHCreateFunc,EIHCreateFunc)
-    #endif
-    */
-
-
 };
 class HandlerMap : public std::map<UInt32,HandlerEntry>
 {
 public:
-    inline void insert(HandlerEntry& entry)
+
+    template <class MgefHandlerT, class EfitHandlerT, class ActiveEffectT>
+    inline void insert(UInt32 ehCode, const char* ehName)
     {
-        std::map<UInt32,HandlerEntry>::insert(std::pair<UInt32,HandlerEntry>(entry._ehCode,entry));
+        HandlerEntry entry;
+        entry._ehCode = ehCode;
+        entry._ehName = ehName;
+        entry._CreateMgefHandler = MgefHandlerT::Make;
+        entry._CreateEfitHandler = EfitHandlerT::Make;
+        #ifdef OBLIVION
+        entry._CreateActiveEffect = ActiveEffectT::Make;
+        #endif
+        std::map<UInt32,HandlerEntry>::insert(std::pair<UInt32,HandlerEntry>(ehCode,entry));
     }
+
     HandlerMap()
     {
-        /*
-        // don't put output statements here, as the output log may not yet be initialized        
-        insert(HANDLERENTRY(EffectHandlerCode,"Default Handler",EffectSettingHandler::Make,EffectItemHandler::Make,ActiveEffectHandler::Make));
-        //insert(HANDLERENTRY(ValueModifierEHCode,"Value Modifier Handler",ValueModifierESHandler::Make,ValueModifierEIHandler::Make,(void*)0));
-        //insert(HandlerEntry('LPSD',"Dispel Handler",(void*)&GenericEffectSettingHandler::Make<'LPSD'>,0));
-        */
+        // don't put output statements here, as the output log may not yet be initialized   
+        insert<GenericMgefHandler<EffectHandler::kACTV>,GenericEfitHandler<EffectHandler::kACTV>,ActiveEffect>(EffectHandler::kACTV,"< Default >");
+        insert<GenericMgefHandler<EffectHandler::kSEFF>,GenericEfitHandler<EffectHandler::kSEFF>,ActiveEffect>(EffectHandler::kSEFF,"Scripted");
+        insert<GenericMgefHandler<EffectHandler::kSUDG>,GenericEfitHandler<EffectHandler::kSUDG>,ActiveEffect>(EffectHandler::kSUDG,"Sun Damage");
+        insert<GenericMgefHandler<EffectHandler::kDEMO>,GenericEfitHandler<EffectHandler::kDEMO>,ActiveEffect>(EffectHandler::kDEMO,"Demoralize");
+        insert<GenericMgefHandler<EffectHandler::kCMND>,GenericEfitHandler<EffectHandler::kCMND>,ActiveEffect>(EffectHandler::kCMND,"Command");
+        insert<GenericMgefHandler<EffectHandler::kCOCR>,GenericEfitHandler<EffectHandler::kCOCR>,ActiveEffect>(EffectHandler::kCOCR,"Command Creature");
+        insert<GenericMgefHandler<EffectHandler::kCOHU>,GenericEfitHandler<EffectHandler::kCOHU>,ActiveEffect>(EffectHandler::kCOHU,"Command Humanoid");
+        insert<GenericMgefHandler<EffectHandler::kREAN>,GenericEfitHandler<EffectHandler::kREAN>,ActiveEffect>(EffectHandler::kREAN,"Reanimate");
+        insert<GenericMgefHandler<EffectHandler::kTURN>,GenericEfitHandler<EffectHandler::kTURN>,ActiveEffect>(EffectHandler::kTURN,"Turn Undead");
+        insert<GenericMgefHandler<EffectHandler::kVAMP>,GenericEfitHandler<EffectHandler::kVAMP>,ActiveEffect>(EffectHandler::kVAMP,"Vampirism");
+        insert<GenericMgefHandler<EffectHandler::kLGHT>,GenericEfitHandler<EffectHandler::kLGHT>,ActiveEffect>(EffectHandler::kLGHT,"Light");
+        insert<GenericMgefHandler<EffectHandler::kDSPL>,GenericEfitHandler<EffectHandler::kDSPL>,ActiveEffect>(EffectHandler::kDSPL,"Dispel");
+        insert<GenericMgefHandler<EffectHandler::kCURE>,GenericEfitHandler<EffectHandler::kCURE>,ActiveEffect>(EffectHandler::kCURE,"Cure");
+        insert<GenericMgefHandler<EffectHandler::kDIAR>,GenericEfitHandler<EffectHandler::kDIAR>,ActiveEffect>(EffectHandler::kDIAR,"Disintegrate Armor");
+        insert<GenericMgefHandler<EffectHandler::kDIWE>,GenericEfitHandler<EffectHandler::kDIWE>,ActiveEffect>(EffectHandler::kDIWE,"Disintegrate Weapon");
+        insert<GenericMgefHandler<EffectHandler::kLOCK>,GenericEfitHandler<EffectHandler::kLOCK>,ActiveEffect>(EffectHandler::kLOCK,"Lock");
+        insert<GenericMgefHandler<EffectHandler::kOPEN>,GenericEfitHandler<EffectHandler::kOPEN>,ActiveEffect>(EffectHandler::kOPEN,"Open");
+        insert<GenericMgefHandler<EffectHandler::kSTRP>,GenericEfitHandler<EffectHandler::kSTRP>,ActiveEffect>(EffectHandler::kSTRP,"Soul Trap");
+        insert<GenericValueModifierMgefHandler<EffectHandler::kMDAV>,GenericValueModifierEfitHandler<EffectHandler::kMDAV>,ValueModifierEffect>(EffectHandler::kMDAV,"Value Modifier");
+        insert<GenericValueModifierMgefHandler<EffectHandler::kABSB>,GenericValueModifierEfitHandler<EffectHandler::kABSB>,ValueModifierEffect>(EffectHandler::kABSB,"Absorb");
+        insert<GenericValueModifierMgefHandler<EffectHandler::kPARA>,GenericValueModifierEfitHandler<EffectHandler::kPARA>,ValueModifierEffect>(EffectHandler::kPARA,"Paralysis");
+        insert<GenericValueModifierMgefHandler<EffectHandler::kSHLD>,GenericValueModifierEfitHandler<EffectHandler::kSHLD>,ValueModifierEffect>(EffectHandler::kSHLD,"Shield");
+        insert<GenericValueModifierMgefHandler<EffectHandler::kCALM>,GenericValueModifierEfitHandler<EffectHandler::kCALM>,ValueModifierEffect>(EffectHandler::kCALM,"Calm");
+        insert<GenericValueModifierMgefHandler<EffectHandler::kFRNZ>,GenericValueModifierEfitHandler<EffectHandler::kFRNZ>,ValueModifierEffect>(EffectHandler::kFRNZ,"Frenzy");
+        insert<GenericValueModifierMgefHandler<EffectHandler::kCHML>,GenericValueModifierEfitHandler<EffectHandler::kCHML>,ValueModifierEffect>(EffectHandler::kCHML,"Chameleon");
+        insert<GenericValueModifierMgefHandler<EffectHandler::kINVI>,GenericValueModifierEfitHandler<EffectHandler::kINVI>,ValueModifierEffect>(EffectHandler::kINVI,"Invisibility");
+        insert<GenericValueModifierMgefHandler<EffectHandler::kDTCT>,GenericValueModifierEfitHandler<EffectHandler::kDTCT>,ValueModifierEffect>(EffectHandler::kDTCT,"Detect Life");
+        insert<GenericValueModifierMgefHandler<EffectHandler::kNEYE>,GenericValueModifierEfitHandler<EffectHandler::kNEYE>,ValueModifierEffect>(EffectHandler::kNEYE,"Night Eye");
+        insert<GenericValueModifierMgefHandler<EffectHandler::kDARK>,GenericValueModifierEfitHandler<EffectHandler::kDARK>,ValueModifierEffect>(EffectHandler::kDARK,"Darkness");
+        insert<GenericValueModifierMgefHandler<EffectHandler::kTELE>,GenericValueModifierEfitHandler<EffectHandler::kTELE>,ValueModifierEffect>(EffectHandler::kTELE,"Telekinesis");
+        insert<GenericMgefHandler<EffectHandler::kSUMN>,GenericEfitHandler<EffectHandler::kSUMN>,ActiveEffect>(EffectHandler::kSUMN,"Summon");
+        insert<GenericMgefHandler<EffectHandler::kSMAC>,GenericEfitHandler<EffectHandler::kSMAC>,ActiveEffect>(EffectHandler::kSMAC,"Summon Actor");
+        insert<GenericMgefHandler<EffectHandler::kSMBO>,GenericEfitHandler<EffectHandler::kSMBO>,ActiveEffect>(EffectHandler::kSMBO,"Bound Item");
     }
 
 } g_handlerMap;
 // methods
-const char* EffectHandlerBase::HandlerName() const
+const char* EffectHandler::HandlerName() const
 {
     // lookup name in handler map
     HandlerMap::iterator it = g_handlerMap.find(HandlerCode());
     if (it != g_handlerMap.end()) return it->second._ehName;
     return 0; // unrecognized handler
 }
-UInt32 EffectHandlerBase::GetDefaultHandlerCode(UInt32 mgefCode)
+UInt32 EffectHandler::GetDefaultHandlerCode(UInt32 mgefCode)
 {   
     if (!EffectSetting::IsMgefCodeVanilla(mgefCode)) 
     {
@@ -148,7 +169,7 @@ UInt32 EffectHandlerBase::GetDefaultHandlerCode(UInt32 mgefCode)
     _DMESSAGE("Default Handler for effect '%4.4s' {%08X} is '%4.4s'",&mgefCode,mgefCode,&ehCode);
     return ehCode;
 }
-bool EffectHandlerBase::GetNextHandler(UInt32& ehCode, const char*& ehName)
+bool EffectHandler::GetNextHandler(UInt32& ehCode, const char*& ehName)
 {
     // cached iterator from last lookup
     static HandlerMap::iterator it = g_handlerMap.end();
@@ -186,7 +207,7 @@ bool EffectHandlerBase::GetNextHandler(UInt32& ehCode, const char*& ehName)
     }
 }
 // hooks
-void EffectHandlerBase::Initialize()
+void EffectHandler::Initialize()
 {
     _MESSAGE("Initializing ...");
     #ifdef OBLIVION
@@ -194,94 +215,55 @@ void EffectHandlerBase::Initialize()
     // ActiveEffect_RegisterLastCreateFunc_Hook.WriteRelJump(&ActiveEffect::PopulateCreatorMap);
     #endif
 }
-/*************************** EffectSettingHandler ********************************/
-EffectSettingHandler* EffectSettingHandler::Create(UInt32 handlerCode, EffectSetting& effect)
+/*************************** MgefHandler ********************************/
+MgefHandler* MgefHandler::Create(UInt32 handlerCode, EffectSetting& effect)
 {
     // lookup creator func in handler map
     HandlerMap::iterator it = g_handlerMap.find(handlerCode);
-    if (it != g_handlerMap.end() && it->second._eshCreateFunc) return it->second._eshCreateFunc(effect);
+    if (it != g_handlerMap.end() && it->second._CreateMgefHandler) return it->second._CreateMgefHandler(effect);
     return 0; // unrecognized handler
 }
 // serialization
-bool EffectSettingHandler::LoadHandlerChunk(TESFile& file)
-{
-    return true; // default handler stores no data in chunk
-}
-void EffectSettingHandler::SaveHandlerChunk()
-{
-    // default handler saves no data in chunk, and hence saves no chunk at all
-}
-void EffectSettingHandler::LinkHandler()
-{
-    // default handler has no fields to link
-    // NOTE: the ValueModifierEffect handler will need to link the assoc AV on the parent effect item
-    // however, the SummonEffect handler does *not* need to link the assoc form
-}
+bool MgefHandler::LoadHandlerChunk(TESFile& file, UInt32 RecordVersion) { return true; } // default handler stores no data in chunk
+void MgefHandler::SaveHandlerChunk() {} // default handler saves no data, and hence saves no chunk at all
+void MgefHandler::LinkHandler() {} // default handler has no fields to link
 // copy/compare
-void EffectSettingHandler::CopyFrom(const EffectSettingHandler& copyFrom)
+void MgefHandler::CopyFrom(const MgefHandler& copyFrom) {}   // default handler has no fields to copy
+bool MgefHandler::CompareTo(const MgefHandler& compareTo)
 {
-    // default handler has no fields to copy
-}
-bool EffectSettingHandler::CompareTo(const EffectSettingHandler& compareTo)
-{
-    if (HandlerCode() != compareTo.HandlerCode()) return true;
-    
+    if (HandlerCode() != compareTo.HandlerCode()) return true;    
     // default handler has no other fields to compare
     return false;
 }
 // child Dialog for CS editing
 #ifndef OBLIVION
-INT EffectSettingHandler::DialogTemplateID()
-{
-    _DMESSAGE("");
-    // default handler does not require a child dialog in MGEF editing
-    return 0;
-}
-bool EffectSettingHandler::DialogMessageCallback(HWND dialog, UINT uMsg, WPARAM wParam, LPARAM lParam, LRESULT& result)
-{
-    _DMESSAGE("");
-    // default handler process no messages
-    return false;
-}
-void EffectSettingHandler::SetInDialog(HWND dialog)
-{
-    _DMESSAGE("");
-    // default handler has no fields
-    return;
-}
-void EffectSettingHandler::GetFromDialog(HWND dialog)
-{
-    _DMESSAGE("");
-    // default handler has no fields
-    return;
-}
-void EffectSettingHandler::CleanupDialog(HWND dialog)
-{
-    _DMESSAGE("");
-    // default handler has no dialog
-    return;
-} 
-#endif
-/*************************** EffectItemHandler ********************************/
-/*************************** ActiveEffectHandler ********************************/
+INT MgefHandler::DialogTemplateID() { return 0; }   // default handler has no dialog
+void MgefHandler::InitializeDialog(HWND dialog) {}
+bool MgefHandler::DialogMessageCallback(HWND dialog, UINT uMsg, WPARAM wParam, LPARAM lParam, LRESULT& result) { return false; }
+void MgefHandler::SetInDialog(HWND dialog) {}
+void MgefHandler::GetFromDialog(HWND dialog) {}
+void MgefHandler::CleanupDialog(HWND dialog) {} 
+#endif  
+/*************************** EfitHandler ********************************/
+/*************************** ActiveEffect ********************************/
 #ifdef OBLIVION
-bool ActiveEffectHandlerBase::FullyLocalized()
+bool ActvHandler::FullyLocalized()
 {
     return true;
 }
-ActiveEffectHandler::ActiveEffectHandler(MagicCaster* caster, MagicItem* magicItem, EffectItem* effectItem) 
-    : ActiveEffect(caster,magicItem,(::EffectItem*)effectItem) 
+ActiveEffect::ActiveEffect(MagicCaster* caster, MagicItem* magicItem, EffectItem* effectItem) 
+: ::ActiveEffect(caster,magicItem,(::EffectItem*)effectItem) 
 {
 }
-ActiveEffect* ActiveEffectHandler::Clone() const
+::ActiveEffect* ActiveEffect::Clone() const
 {
-    ActiveEffectHandler* neweff = Make(caster,magicItem,(OBME::EffectItem*)effectItem); 
+    ::ActiveEffect* neweff = Make(caster,magicItem,(OBME::EffectItem*)effectItem); 
     CopyTo(*neweff); 
     return neweff;
 }
-ActiveEffectHandler* ActiveEffectHandler::Make(MagicCaster* caster, MagicItem* magicItem, EffectItem* effectItem)
+::ActiveEffect* ActiveEffect::Make(MagicCaster* caster, MagicItem* magicItem, EffectItem* effectItem)
 {
-    return new ActiveEffectHandler(caster,magicItem,effectItem);
+    return new ActiveEffect(caster,magicItem,effectItem);
 }
 #endif
 }   //  end namespace OBME

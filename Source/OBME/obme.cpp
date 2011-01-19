@@ -29,7 +29,7 @@ extern "C" _declspec(dllexport) void* Initialize()
     // begin initialization  
     _MESSAGE("Initializing Submodule {%p} ...", hModule); 
 
-    OBME::EffectHandlerBase::Initialize();
+    OBME::EffectHandler::Initialize();
     OBME::EffectSetting::Initialize();
     
     // initialization complete

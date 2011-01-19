@@ -9,7 +9,7 @@
 namespace OBME {
 
 // argument classes from OBME
-class   EffectSettingHandler;      // OBME/EffectHandlers/EffectHandler.h
+class   MgefHandler;      // OBME/EffectHandlers/EffectHandler.h
 
 class EffectSetting : public ::EffectSetting
 {
@@ -147,7 +147,7 @@ public:
     static EffectSetting*   poisonVFXEffect;
 
     // additional members - this changes the size of EffectSetting!
-    MEMBER /*++/++*/ EffectSettingHandler*  effectHandler;      
+    MEMBER /*++/++*/ MgefHandler*           effectHandler;      
     MEMBER /*++/++*/ UInt32                 mgefObmeFlags; // seperate field for overriden flags
     MEMBER /*++/++*/ UInt32                 loadFlags; // bitmask of loaded chunk types, used for linking
 
@@ -195,8 +195,8 @@ public:
     _LOCAL static bool      ResolveSavedMgefCode(UInt32& mgefCode); //  does form-id like resolution on code from savegame
 
     // methods: effect handler
-    _LOCAL EffectSettingHandler&    GetHandler();
-    _LOCAL void                     SetHandler(EffectSettingHandler* handler);
+    _LOCAL MgefHandler&             GetHandler();
+    _LOCAL void                     SetHandler(MgefHandler* handler);
 
     // methods: CS dialogs
     #ifndef OBLIVION

@@ -17,10 +17,8 @@ const int OBME_EFIT_VERSION     = 0x00;     // EffectItem save version
 const int OBME_MGIT_VERSION     = 0x00;     // MagicItem save version
 
 // macros for combining version info into one 32bit number.  Pass zero for overall build version
-#define OBME_RECORD_VERSION(recordT)    ((OBME_MAJOR_VERSION << 0x18) | (OBME_MINOR_VERSION << 0x10) | \
-                                        (OBME_BETA_VERSION << 0x08) | recordT)
+#define MAKE_VERSION(major,minor,beta,record) (((UInt8)major << 0x18) | ((UInt8)minor << 0x10) | ((UInt8)beta << 0x08) | (UInt8)record)
+#define OBME_VERSION(recordT)                MAKE_VERSION(OBME_MAJOR_VERSION,OBME_MINOR_VERSION,OBME_BETA_VERSION,recordT)
 
-#define VERSION_VANILLA_OBLIVION        0x00000000      // indicates an object initialized by vanilla code
-#define VERSION_OBME_LASTUNVERSIONED    0x01000301      // last version of OBME to use old/no versioning scheme
-#define VERSION_OBME_LASTV1             0x01FFFFFF      // version 1.x.x.x 
-                
+#define VERSION_VANILLA_OBLIVION        0x00000000  // indicates an object initialized by vanilla code
+#define VERSION_OBME_LASTUNVERSIONED    MAKE_VERSION(1,0,3,0xFF)  // last version of OBME to use old/no versioning scheme (v1.beta3)

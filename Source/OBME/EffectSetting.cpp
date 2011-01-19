@@ -87,7 +87,7 @@ bool EffectSetting::LoadForm(TESFile& file)
             _DMESSAGE("EDID chunk: '%4.4s'",&mgefCode);
             break;
 
-        // obme data, added in v1.beta (so version is guaranteed > VERSION_OBME_LASTUNVERSIONED)
+        // obme data, added in v1.beta4 (so version is guaranteed > VERSION_OBME_LASTUNVERSIONED)
         case 'OBME': 
             if (loadFlags & ~kMgefChunk_Edid)
             {
@@ -105,10 +105,11 @@ bool EffectSetting::LoadForm(TESFile& file)
             // flags
             mgefObmeFlags = obme.mgefObmeFlags & ~_handlerFlagMask; // 'Param' now deprecated
             // handler parameters
-            if (loadVersion <= VERSION_OBME_LASTV1)
+            if (loadVersion < MAKE_VERSION(2,0,0,0))
             {       
+                // v1 used shared handler params and embedded resolution info
                 _handlerParamB = obme._mgefParamB;
-                TESFileFormats::ResolveModValue(_handlerParamB,file,obme._mgefParamBResType); // resolve ParamB using v1 embedded format info
+                TESFileFormats::ResolveModValue(_handlerParamB,file,obme._mgefParamBResType); // resolve ParamB
                 _handlerFlags = obme.mgefObmeFlags & _handlerFlagMask; // 'Param' flags
                 _handlerParamARes = obme._mgefParamResType; // store mgefParam format info 
             }
@@ -117,37 +118,13 @@ bool EffectSetting::LoadForm(TESFile& file)
             _DMESSAGE("OBME chunk: version {%08X}",obme.obmeRecordVersion);
             break;
 
-        // obme auxiliary data - deprecated in favor of the OBME chunk as of v1.beta4
+        // obme auxiliary data pre-v1.beta4
         case 'DATX':
-            if (loadFlags & ~kMgefChunk_Edid)
-            {
-                gLog.PushStyle();
-                _ERROR("Unexpected chunk 'DATX' - must immediately follow chunk 'EDID'");
-                gLog.PopStyle();
-            }
-            EffectSettingDatxChunk datx;
-            memset(&datx,0,sizeof(datx));
-            file.GetChunkData(&datx,sizeof(datx));
             // early beta didn't write version or resolution info, assume latest unversioned build
             loadVersion = VERSION_OBME_LASTUNVERSIONED; 
-            // effect handler code
-            _handlerCode = datx.effectHandler; 
-            // flags
-            mgefObmeFlags = obme.mgefObmeFlags & ~_handlerFlagMask; // 'Param' now deprecated
-            // handler parameters  
-            _handlerParamB = datx.mgefParamB;
-            _handlerFlags = datx.mgefFlagOverrides & _handlerFlagMask;
-            // v1.beta3 mgefParam & ParamB was a formID or an extended enumeration for all handlers except DSPL
-            // v1.beta3 DSPL handler stored an mgef/eh code in mgefParam and a static constant in mgefParamB
-            if (_handlerCode != Swap32('DSPL'))
-            {
-                TESFileFormats::ResolveModValue(_handlerParamB,file,TESFileFormats::kResolutionType_FormID);
-                _handlerParamARes = TESFileFormats::kResolutionType_FormID;                
-            }
-            else if ((_handlerFlags & kMgefObmeFlag__ParamFlagB) == 0) _handlerParamARes = TESFileFormats::kResolutionType_MgefCode;
             // done
             loadFlags |= kMgefChunk_Datx;
-            _DMESSAGE("DATX chunk: assumed version {%08X}",loadVersion);
+            _ERROR("DATX chunk: assumed version {%08X} - this version is no longer supported",loadVersion);
             break;
 
         // actual editor id
@@ -207,14 +184,13 @@ bool EffectSetting::LoadForm(TESFile& file)
             TESFileFormats::ResolveModValue(data.hitSound,file,TESFileFormats::kResolutionType_FormID);
             TESFileFormats::ResolveModValue(data.areaSound,file,TESFileFormats::kResolutionType_FormID);
             // resistance AV
-            if (data.resistAV == ActorValues::kActorVal__MAX || data.resistAV == 0xFFFFFFFF) data.resistAV = ActorValues::kActorVal__NONE;
-            TESFileFormats::ResolveModValue(data.resistAV,file,TESFileFormats::kResolutionType_EnumExtension);
+            TESFileFormats::ResolveModValue(data.resistAV,file,TESFileFormats::kResolutionType_ActorValue);
             // school
-            TESFileFormats::ResolveModValue(data.school,file,TESFileFormats::kResolutionType_EnumExtension);
+            TESFileFormats::ResolveModValue(data.school,file,TESFileFormats::kResolutionType_FormID);
             // handler parameter
-            if (loadVersion >= VERSION_VANILLA_OBLIVION && loadVersion <= VERSION_OBME_LASTV1)
+            if (loadVersion >= VERSION_VANILLA_OBLIVION && loadVersion < MAKE_VERSION(2,0,0,0))
             {                
-                TESFileFormats::ResolveModValue(data.mgefParam,file,_handlerParamARes); // resolve v1.beta1 - v1.beta3 mgefParamA using embedded or deduced format
+                TESFileFormats::ResolveModValue(data.mgefParam,file,_handlerParamARes); // resolve mgefParam using v1 embedded resolution info
             }
             else if (data.mgefFlags & (kMgefFlag_UseWeapon | kMgefFlag_UseArmor | kMgefFlag_UseActor))
             {
@@ -222,7 +198,7 @@ bool EffectSetting::LoadForm(TESFile& file)
             }
             else if (data.mgefFlags & kMgefFlag_UseActorValue)
             {
-                TESFileFormats::ResolveModValue(data.mgefParam,file,TESFileFormats::kResolutionType_EnumExtension); // param is a modified avCode
+                TESFileFormats::ResolveModValue(data.mgefParam,file,TESFileFormats::kResolutionType_ActorValue); // param is a modified avCode
             }
             // mgefFlags
             if (loadVersion == VERSION_VANILLA_OBLIVION)
@@ -234,7 +210,9 @@ bool EffectSetting::LoadForm(TESFile& file)
             data.mgefFlags &= ~kMgefFlag_PCHasEffect;   // clear PCHasEffect flag
             // copy data to object
             memcpy(&mgefFlags,&data,sizeof(data));
-            // initialize newer OBME added fields that weren't included in older versions of the OBME/DATX chunks
+            SetResistAV(data.resistAV); // standardize resistance value
+            // initialize newer OBME-added fields that weren't included in older/vanilla versions
+
             if (loadVersion == VERSION_VANILLA_OBLIVION)
             {
                 // clear obme flags
@@ -246,7 +224,7 @@ bool EffectSetting::LoadForm(TESFile& file)
             {
                 // no fields yet that weren't in DATX chunk
             }
-            else if (loadVersion <= VERSION_OBME_LASTV1)
+            else if (loadVersion < MAKE_VERSION(2,0,0,0))
             {
                 // no fields yet that weren't in OBME v1 chunk
             }
@@ -326,11 +304,11 @@ bool EffectSetting::LoadForm(TESFile& file)
         gLog.PopStyle();
     }
 
-    // Handle case of missing DATA chunk with OBME/DATX chunks
-    if ((loadFlags & (kMgefChunk_Datx | kMgefChunk_Obme)) && (~loadFlags & kMgefChunk_Data))
+    // Handle case of missing DATA chunk with OBME chunks
+    if ((loadFlags & kMgefChunk_Obme) && (~loadFlags & kMgefChunk_Data))
     {
         gLog.PushStyle();
-        _ERROR("Expected chunk 'DATA' not found - records with 'OBME' or 'DATX' chunk must contain a 'DATA' chunk as well");
+        _ERROR("Expected chunk 'DATA' not found - records with 'OBME' chunk must contain a 'DATA' chunk as well");
         gLog.PopStyle();
     }
 
@@ -344,7 +322,7 @@ bool EffectSetting::LoadForm(TESFile& file)
     }
 
     // if missing EHND chunk, construct a default handler
-    if ((~loadFlags & kMgefChunk_Ehnd) && (loadFlags & (kMgefChunk_Obme | kMgefChunk_Datx | kMgefChunk_Data)))
+    if ((~loadFlags & kMgefChunk_Ehnd) && (loadFlags & (kMgefChunk_Obme | kMgefChunk_Data)))
     {
         MgefHandler* handler = MgefHandler::Create(_handlerCode,*this);  // attempt to create handler from _handlerCode
         if (!handler)
@@ -390,17 +368,19 @@ void EffectSetting::SaveFormChunks()
     {        
         EffectSettingObmeChunk obme;
         memset(&obme,0,sizeof(obme));   
-        obme.obmeRecordVersion = OBME_RECORD_VERSION(OBME_MGEF_VERSION);
+        obme.obmeRecordVersion = OBME_VERSION(OBME_MGEF_VERSION);
         obme.effectHandler = GetHandler().HandlerCode();
+        obme.mgefObmeFlags = mgefObmeFlags;
+        // set resolution info (deprecated, kept only for convenience with TES4Edit)
         if (mgefFlags & (kMgefFlag_UseWeapon | kMgefFlag_UseArmor | kMgefFlag_UseActor))
         {
             obme._mgefParamResType = TESFileFormats::kResolutionType_FormID; // param is a summoned formID
         }
         else if (mgefFlags & kMgefFlag_UseActorValue)
         {
-            obme._mgefParamResType = TESFileFormats::kResolutionType_EnumExtension; // param is a modified avCode
+            obme._mgefParamResType = TESFileFormats::kResolutionType_ActorValue; // param is a modified avCode
         }
-        obme.mgefObmeFlags = mgefObmeFlags;
+        // save
         PutFormRecordChunkData(Swap32('OBME'),&obme,sizeof(obme));
         _DMESSAGE("OBME chunk: version {%08X}",obme.obmeRecordVersion);
     }
@@ -432,7 +412,7 @@ void EffectSetting::SaveFormChunks()
         if (hitSound) data.hitSound = ((TESForm*)hitSound)->formID;
         if (areaSound) data.areaSound = ((TESForm*)areaSound)->formID;
         PutFormRecordChunkData(Swap32('DATA'),&data,sizeof(data));
-        _DMESSAGE("DATA chunk: flags {%08X}",mgefFlags);
+        _DMESSAGE("DATA chunk: flags={%08X}, resistAV=%08X",mgefFlags,resistAV);
     }
 
     // counter-effect list
@@ -776,7 +756,7 @@ void EffectSetting::InitializeDialog(HWND dialog)
         // Resistance AV
         ctl = GetDlgItem(dialog,IDC_MGEF_RESISTVALUE);
         TESComboBox::PopulateWithActorValues(ctl,true,false);
-        TESComboBox::AddItem(ctl,kNoneEntry,(void*)ActorValues::kActorVal__NONE);
+        TESComboBox::AddItem(ctl,kNoneEntry,(void*)ActorValues::kActorVal__UBOUND); // game uses 0xFFFFFFFF as an invalid resistance code
         // Hostility
         ctl = GetDlgItem(dialog,IDC_MGEF_HOSTILITY);
         TESComboBox::Clear(ctl);
@@ -1151,8 +1131,6 @@ void EffectSetting::GetFromDialog(HWND dialog)
     // FLAGS
     for (int i = 0; i < 0x40; i++) {if (GetDlgItem(dialog,IDC_MGEF_FLAGEXBASE + i)) { SetFlag(i,IsDlgButtonChecked(dialog,IDC_MGEF_FLAGEXBASE + i)); }}
 
-    _DMESSAGE("Comparing ... %i",CompareTo(*TESDialog::GetFormEditParam(dialog)));
-
 }
 void EffectSetting::CleanupDialog(HWND dialog)
 {
@@ -1247,7 +1225,7 @@ UInt8 EffectSetting::GetDefaultHostility(UInt32 mgefCode)
         return Magic::kHostility_Beneficial;
     case 'DG': // damage
     case 'DR': // drain
-    case 'WL': // weakness
+    case 'WK': // weakness
         return Magic::kHostility_Hostile;
     }
 
@@ -1303,7 +1281,7 @@ bool EffectSetting::RequiresObmeMgefChunks()
     if (school > Magic::kSchool__MAX) return BoolEx(kReqOBME_School);
 
     // resistanceAV - must be a vanilla AV
-    if (GetResistAV() > ActorValues::kActorVal__MAX && GetResistAV() != ActorValues::kActorVal__NONE) return BoolEx(kReqOBME_ResistAV);
+    if (GetResistAV() > ActorValues::kActorVal__MAX && GetResistAV() != ActorValues::kActorVal__UBOUND) return BoolEx(kReqOBME_ResistAV);
     
     // editorID - must be the mgefCode reinterpreted as a string
     char codestr[5] = {{0}};
@@ -1382,12 +1360,12 @@ inline void EffectSetting::SetHostility(UInt8 newval)
 }
 inline UInt32 EffectSetting::GetResistAV()
 {
-    if (resistAV == ActorValues::kActorVal__MAX || resistAV == 0xFFFFFFFF) return ActorValues::kActorVal__NONE;
+    if (resistAV == ActorValues::kActorVal__NONE || resistAV == ActorValues::kActorVal__MAX) return ActorValues::kActorVal__UBOUND;
     else return resistAV;
 }
 inline void EffectSetting::SetResistAV(UInt32 newResistAV)
 {
-    if (newResistAV == ActorValues::kActorVal__MAX || newResistAV == 0xFFFFFFFF) resistAV = ActorValues::kActorVal__NONE;
+    if (newResistAV == ActorValues::kActorVal__NONE || newResistAV == ActorValues::kActorVal__MAX) resistAV = ActorValues::kActorVal__UBOUND;
     else resistAV = newResistAV;
 }
 void EffectSetting::SetProjectileType(UInt32 newType)
@@ -1686,7 +1664,7 @@ EffectSetting::EffectSetting()
     // template for filtering effects before spellmaking, enchanting, etc.  Do NOT change the mgefFlags 
     // initialization from zero, or the default school from 6, as this will cause some effects to be
     // incorrectly filtered out.
-    resistAV = ActorValues::kActorVal__NONE;    // standardize the 'no resistav' value
+    resistAV = ActorValues::kActorVal__UBOUND; // standardize the 'No Resistance' value to 0xFFFFFFFF, which is actually used in Resistance system
     mgefCode = kMgefCode_None;
     // initialize new fields
     effectHandler = 0;

@@ -119,15 +119,6 @@ public:
         MEMBER /*3C*/ float         barterFactor;
     };
 
-    // chunk structure for OBME auxiliary chunk. deprecated since v1 beta, but still recognized for compatibility
-    struct EffectSettingDatxChunk
-    {// size 20
-        MEMBER /*00*/ UInt32        effectHandler;      // effect handler code
-        MEMBER /*04*/ UInt32        mgefFlagOverrides;  // bitmask
-        MEMBER /*08*/ UInt32        mgefParamB;         // 
-        MEMBER /*0C*/ UInt32        reserved0C[5];
-    };
-
     // chunk structure for OBME data
     struct EffectSettingObmeChunk
     {// size 30

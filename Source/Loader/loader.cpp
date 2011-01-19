@@ -56,7 +56,7 @@ public:
 static void SaveCallback(void * reserved)
 {
     _MESSAGE("Writing to cosave ...");
-    g_serializationIntfc->OpenRecord('HEAD',OBME_RECORD_VERSION(OBME_COSAVE_VERSION));
+    g_serializationIntfc->OpenRecord('HEAD',OBME_VERSION(OBME_COSAVE_VERSION));
 	g_serializationIntfc->WriteRecordData("OBME by JRoush", 14);
 }
 static void LoadCallback(void * reserved)
@@ -174,8 +174,8 @@ extern "C" bool _declspec(dllexport) OBSEPlugin_Query(const OBSEInterface* obse,
 	// fill out plugin info structure
     info->infoVersion = PluginInfo::kInfoVersion;
 	info->name = "OBME";
-	info->version = OBME_RECORD_VERSION(0);
-    _MESSAGE("OBSE Query (CSMode = %i) v%p (%i.%i beta%i)",obse->isEditor,OBME_RECORD_VERSION(0),OBME_MAJOR_VERSION,OBME_MINOR_VERSION,OBME_BETA_VERSION);
+	info->version = OBME_VERSION(0);
+    _MESSAGE("OBSE Query (CSMode = %i) v%p (%i.%i beta%i)",obse->isEditor,OBME_VERSION(0),OBME_MAJOR_VERSION,OBME_MINOR_VERSION,OBME_BETA_VERSION);
 
     // check obse version
     g_obseIntfc = obse;

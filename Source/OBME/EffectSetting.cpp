@@ -1,11 +1,11 @@
 #include "OBME/EffectSetting.h"
 #include "OBME/EffectSetting.rc.h"
 #include "OBME/OBME_version.h"
-#include "OBME/LoadOrderResolution.h"
 #include "OBME/Magic.h"
 #include "OBME/EffectHandlers/EffectHandler.h"
 #include "API/Magic/MagicItemForm.h" // TODO - replace with OBME/MagicItemForm.h
 #include "API/Magic/MagicItemObject.h" // TODO - replace with OBME/MagicItemForm.h
+#include "OBME/EffectHandlers/ValueModifierEffect.h"
 
 #include "API/BSTypes/BSStringT.h"
 #include "API/NiTypes/NiTMap.h"
@@ -18,7 +18,7 @@
 #include "API/CSDialogs/DialogConstants.h"
 #include "API/ExtraData/ExtraDataList.h"
 #include "API/Settings/Settings.h"
-
+#include "Components/TESFileFormats.h"
 #include "Utilities/Memaddr.h"
 
 #include <set>
@@ -67,8 +67,8 @@ bool EffectSetting::LoadForm(TESFile& file)
     UInt32 loadVersion = VERSION_VANILLA_OBLIVION;
 
     // these parameters belong in the effect handler, but were stored in the OBME chunk in v1 - require temporary storage
-    UInt32 _handlerCode = EffectSettingHandler::GetDefaultHandlerCode(mgefCode);
-    UInt32 _handlerParamA = 0;
+    UInt32 _handlerCode = EffectHandler::GetDefaultHandlerCode(mgefCode);
+    UInt32 _handlerParamARes = 0;
     UInt32 _handlerParamB = 0;   
     UInt32 _handlerFlags = 0;
     UInt32 _handlerFlagMask = 0x00190004; // 'Param' flags, now repurposed
@@ -107,8 +107,10 @@ bool EffectSetting::LoadForm(TESFile& file)
             // handler parameters
             if (loadVersion <= VERSION_OBME_LASTV1)
             {       
-                _handlerParamB = obme._mgefParamB; // 'MgefParamB': not resolved, that must be done when it is added to the actual handler
+                _handlerParamB = obme._mgefParamB;
+                TESFileFormats::ResolveModValue(_handlerParamB,file,obme._mgefParamBResType); // resolve ParamB using v1 embedded format info
                 _handlerFlags = obme.mgefObmeFlags & _handlerFlagMask; // 'Param' flags
+                _handlerParamARes = obme._mgefParamResType; // store mgefParam format info 
             }
             // done   
             loadFlags |= kMgefChunk_Obme;
@@ -133,9 +135,16 @@ bool EffectSetting::LoadForm(TESFile& file)
             // flags
             mgefObmeFlags = obme.mgefObmeFlags & ~_handlerFlagMask; // 'Param' now deprecated
             // handler parameters  
-            // NOTE: mgefParamB is not resolved, that must be done when it is added to the actual handler later
-            _handlerParamB = datx.mgefParamB; // 'MgefParamB': not resolved, that must be done when it is added to the actual handler
+            _handlerParamB = datx.mgefParamB;
             _handlerFlags = datx.mgefFlagOverrides & _handlerFlagMask;
+            // v1.beta3 mgefParam & ParamB was a formID or an extended enumeration for all handlers except DSPL
+            // v1.beta3 DSPL handler stored an mgef/eh code in mgefParam and a static constant in mgefParamB
+            if (_handlerCode != Swap32('DSPL'))
+            {
+                TESFileFormats::ResolveModValue(_handlerParamB,file,TESFileFormats::kResolutionType_FormID);
+                _handlerParamARes = TESFileFormats::kResolutionType_FormID;                
+            }
+            else if ((_handlerFlags & kMgefObmeFlag__ParamFlagB) == 0) _handlerParamARes = TESFileFormats::kResolutionType_MgefCode;
             // done
             loadFlags |= kMgefChunk_Datx;
             _DMESSAGE("DATX chunk: assumed version {%08X}",loadVersion);
@@ -190,33 +199,31 @@ bool EffectSetting::LoadForm(TESFile& file)
             memset(&data,0,sizeof(data));
             file.GetChunkData(&data,sizeof(data));
             // VFX forms, AFX forms
-            ResolveModValue(data.light,file,kResolutionType_FormID);
-            ResolveModValue(data.effectShader,file,kResolutionType_FormID);
-            ResolveModValue(data.enchantShader,file,kResolutionType_FormID);
-            ResolveModValue(data.castingSound,file,kResolutionType_FormID);
-            ResolveModValue(data.boltSound,file,kResolutionType_FormID);
-            ResolveModValue(data.hitSound,file,kResolutionType_FormID);
-            ResolveModValue(data.areaSound,file,kResolutionType_FormID);
+            TESFileFormats::ResolveModValue(data.light,file,TESFileFormats::kResolutionType_FormID);
+            TESFileFormats::ResolveModValue(data.effectShader,file,TESFileFormats::kResolutionType_FormID);
+            TESFileFormats::ResolveModValue(data.enchantShader,file,TESFileFormats::kResolutionType_FormID);
+            TESFileFormats::ResolveModValue(data.castingSound,file,TESFileFormats::kResolutionType_FormID);
+            TESFileFormats::ResolveModValue(data.boltSound,file,TESFileFormats::kResolutionType_FormID);
+            TESFileFormats::ResolveModValue(data.hitSound,file,TESFileFormats::kResolutionType_FormID);
+            TESFileFormats::ResolveModValue(data.areaSound,file,TESFileFormats::kResolutionType_FormID);
             // resistance AV
             if (data.resistAV == ActorValues::kActorVal__MAX || data.resistAV == 0xFFFFFFFF) data.resistAV = ActorValues::kActorVal__NONE;
-            ResolveModValue(data.resistAV,file,kResolutionType_EnumExtension);
+            TESFileFormats::ResolveModValue(data.resistAV,file,TESFileFormats::kResolutionType_EnumExtension);
             // school
-            ResolveModValue(data.school,file,kResolutionType_EnumExtension);
-            // handler parameters
-            if (data.mgefFlags & (kMgefFlag_UseWeapon | kMgefFlag_UseArmor | kMgefFlag_UseActor))
+            TESFileFormats::ResolveModValue(data.school,file,TESFileFormats::kResolutionType_EnumExtension);
+            // handler parameter
+            if (loadVersion >= VERSION_VANILLA_OBLIVION && loadVersion <= VERSION_OBME_LASTV1)
+            {                
+                TESFileFormats::ResolveModValue(data.mgefParam,file,_handlerParamARes); // resolve v1.beta1 - v1.beta3 mgefParamA using embedded or deduced format
+            }
+            else if (data.mgefFlags & (kMgefFlag_UseWeapon | kMgefFlag_UseArmor | kMgefFlag_UseActor))
             {
-                ResolveModValue(data.mgefParam,file,kResolutionType_FormID); // param is a summoned formID
+                TESFileFormats::ResolveModValue(data.mgefParam,file,TESFileFormats::kResolutionType_FormID); // param is a summoned formID
             }
             else if (data.mgefFlags & kMgefFlag_UseActorValue)
             {
-                ResolveModValue(data.mgefParam,file,kResolutionType_EnumExtension); // param is a modified avCode
+                TESFileFormats::ResolveModValue(data.mgefParam,file,TESFileFormats::kResolutionType_EnumExtension); // param is a modified avCode
             }
-            else if (loadVersion >= VERSION_OBME_LASTUNVERSIONED && loadVersion <= VERSION_OBME_LASTV1)
-            {       
-                _handlerParamA = data.mgefParam; // 'MgefParamA': not resolved, that must be done when it is added to the actual handler
-                data.mgefParam = 0;
-            }
-            else data.mgefParam = 0;
             // mgefFlags
             if (loadVersion == VERSION_VANILLA_OBLIVION)
             {
@@ -227,7 +234,7 @@ bool EffectSetting::LoadForm(TESFile& file)
             data.mgefFlags &= ~kMgefFlag_PCHasEffect;   // clear PCHasEffect flag
             // copy data to object
             memcpy(&mgefFlags,&data,sizeof(data));
-            // OBME added fields
+            // initialize newer OBME added fields that weren't included in older versions of the OBME/DATX chunks
             if (loadVersion == VERSION_VANILLA_OBLIVION)
             {
                 // clear obme flags
@@ -260,7 +267,7 @@ bool EffectSetting::LoadForm(TESFile& file)
                     file.GetChunkData(counters,numCounters * sizeof(UInt32));
                     SetCounterEffects(numCounters,counters);
                     // resolve counter effect codes
-                    for (int c = 0; c < numCounters; c++) ResolveModValue(counterArray[c],file,kResolutionType_MgefCode);
+                    for (int c = 0; c < numCounters; c++) TESFileFormats::ResolveModValue(counterArray[c],file,TESFileFormats::kResolutionType_MgefCode);
                 }
                 // done
                 loadFlags |= kMgefChunk_Esce;
@@ -278,7 +285,7 @@ bool EffectSetting::LoadForm(TESFile& file)
         case 'EHND':
             if (loadFlags & kMgefChunk_Obme)
             {
-                EffectSettingHandler* handler = EffectSettingHandler::Create(_handlerCode,*this);  // attempt to create handler from _handlerCode
+                MgefHandler* handler = MgefHandler::Create(_handlerCode,*this);  // attempt to create handler from _handlerCode
                 if (!handler)
                 {
                     // invalid handler code
@@ -287,7 +294,7 @@ bool EffectSetting::LoadForm(TESFile& file)
                     gLog.PopStyle();
                 } 
                 SetHandler(handler); // set handler to new handler, or a default if the new handler code was invalid
-                GetHandler().LoadHandlerChunk(file);
+                GetHandler().LoadHandlerChunk(file,loadVersion);
                 loadFlags |= kMgefChunk_Ehnd;
                 _DMESSAGE("EHND chunk: handler '%s' {%08X}",GetHandler().HandlerName(),GetHandler().HandlerCode()); 
             }
@@ -339,7 +346,7 @@ bool EffectSetting::LoadForm(TESFile& file)
     // if missing EHND chunk, construct a default handler
     if ((~loadFlags & kMgefChunk_Ehnd) && (loadFlags & (kMgefChunk_Obme | kMgefChunk_Datx | kMgefChunk_Data)))
     {
-        EffectSettingHandler* handler = EffectSettingHandler::Create(_handlerCode,*this);  // attempt to create handler from _handlerCode
+        MgefHandler* handler = MgefHandler::Create(_handlerCode,*this);  // attempt to create handler from _handlerCode
         if (!handler)
         {
             // invalid handler code
@@ -348,7 +355,7 @@ bool EffectSetting::LoadForm(TESFile& file)
             gLog.PopStyle();
         } 
         SetHandler(handler); // set handler to new handler, or a default if the new handler code was invalid
-        // TODO - use _handlerParamA, _handlerParamB, _handlerFlags, depending on handler and version
+        // TODO - use _handlerParamB & _handlerFlags, depending on handler and version
         _DMESSAGE("Created Handler: '%s' {%08X}",GetHandler().HandlerName(),GetHandler().HandlerCode()); 
     }
 
@@ -387,11 +394,11 @@ void EffectSetting::SaveFormChunks()
         obme.effectHandler = GetHandler().HandlerCode();
         if (mgefFlags & (kMgefFlag_UseWeapon | kMgefFlag_UseArmor | kMgefFlag_UseActor))
         {
-            obme._mgefParamResType = kResolutionType_FormID; // param is a summoned formID
+            obme._mgefParamResType = TESFileFormats::kResolutionType_FormID; // param is a summoned formID
         }
         else if (mgefFlags & kMgefFlag_UseActorValue)
         {
-            obme._mgefParamResType = kResolutionType_EnumExtension; // param is a modified avCode
+            obme._mgefParamResType = TESFileFormats::kResolutionType_EnumExtension; // param is a modified avCode
         }
         obme.mgefObmeFlags = mgefObmeFlags;
         PutFormRecordChunkData(Swap32('OBME'),&obme,sizeof(obme));
@@ -445,10 +452,38 @@ void EffectSetting::SaveFormChunks()
 }
 void EffectSetting::LinkForm()
 {
+    
+    if (formFlags & kFormFlags_Linked) return;  // form already linked
     _VMESSAGE("Linking %s", GetDebugDescEx().c_str()); 
-    ::EffectSetting::LinkForm();
-    // link handler object
-    GetHandler().LinkHandler();
+
+    if (loadFlags & kMgefChunk_Data)
+    {   
+        // resolve form light, sound, shaders formids into pointers
+        // NOTE: because TESSound, TESEffectShader, and TESObjectLIGH are not yet defined in COEF, the
+        // normal dynamic cast check on the form pointer is omitted.
+        // If any of these formIDs refer to forms of the wrong type, all hell will break loose.
+        castingSound = (TESSound*)TESForm::LookupByFormID((UInt32)castingSound);
+        boltSound = (TESSound*)TESForm::LookupByFormID((UInt32)boltSound);
+        hitSound = (TESSound*)TESForm::LookupByFormID((UInt32)hitSound);
+        areaSound = (TESSound*)TESForm::LookupByFormID((UInt32)areaSound);
+        effectShader = (TESEffectShader*)TESForm::LookupByFormID((UInt32)effectShader);
+        enchantShader = (TESEffectShader*)TESForm::LookupByFormID((UInt32)enchantShader);
+        light = (TESObjectLIGH*)TESForm::LookupByFormID((UInt32)light);
+        #ifndef OBLIVION
+        if (castingSound) ((TESForm*)castingSound)->AddReference(this);
+        if (boltSound) ((TESForm*)boltSound)->AddReference(this);
+        if (hitSound) ((TESForm*)hitSound)->AddReference(this);
+        if (effectShader) ((TESForm*)effectShader)->AddReference(this);
+        if (enchantShader) ((TESForm*)enchantShader)->AddReference(this);
+        if (light) ((TESForm*)light)->AddReference(this);
+        // TODO - school, resistanceAV
+        #endif
+    }
+    
+    GetHandler().LinkHandler(); // link handler object
+
+    // set linked flag
+    formFlags |= kFormFlags_Linked;
 }
 void EffectSetting::GetDebugDescription(BSStringT& output)
 {
@@ -478,12 +513,11 @@ void EffectSetting::CopyFrom(TESForm& copyFrom)
             bool proceed = true;
             #ifndef OBLIVION
             // prompt user to confirm new code
-            BSStringT prompt;
-            prompt.Format("The effect code of '%s' (%08X) has been changed from {%08X} to {%08X}.\n",GetEditorID(),formID,mgefCode,mgef->mgefCode);
-            prompt += "Magic items like spells & ingredients, scripts, and various other objects use this code.";
-            prompt += "For this reason it is recommended not to change the code unless it is not in use by anything.\n\n";
-            prompt += "Proceed with new code (any other changes to the effect will be applied regardless)?";
-            proceed = (IDYES == MessageBox(dialogHandle,prompt.c_str(),"Confirm changed Effect Code",MB_YESNO|MB_DEFBUTTON2|MB_ICONINFORMATION|MB_APPLMODAL));
+            char format[0x200], prompt[0x200], title[0x200];      
+            LoadString(hModule,IDS_MGEF_MGEFCODEWARNINGPROMPT,format,sizeof(format));   // load prompt string from resource table
+            sprintf_s(prompt,sizeof(prompt),format,GetEditorID(),formID,mgefCode,mgef->mgefCode);             
+            LoadString(hModule,IDS_MGEF_MGEFCODEWARNINGTITLE,title,sizeof(title));   // load title string from resource table
+            proceed = (IDYES == MessageBox(dialogHandle,prompt,title,MB_YESNO|MB_DEFBUTTON2|MB_ICONINFORMATION|MB_APPLMODAL));
             #endif
             if (proceed)
             {
@@ -510,9 +544,11 @@ void EffectSetting::CopyFrom(TESForm& copyFrom)
     mgefObmeFlags = mgef->mgefObmeFlags;
 
     // copy handler
-    EffectSettingHandler* newHandler = EffectSettingHandler::Create(mgef->GetHandler().HandlerCode(),*this);
+    MgefHandler* newHandler = MgefHandler::Create(mgef->GetHandler().HandlerCode(),*this);
     newHandler->CopyFrom(mgef->GetHandler());
     SetHandler(newHandler);
+
+    // TODO - references in CS
 }
 bool EffectSetting::CompareTo(TESForm& compareTo)
 {        
@@ -698,6 +734,7 @@ void EffectSetting::InitializeDialog(HWND dialog)
     ShowTabSubwindow(dialog,0,true);
 
     // GENERAL
+    {
         // school
         ctl = GetDlgItem(dialog,IDC_MGEF_SCHOOL);
         TESComboBox::Clear(ctl);
@@ -709,6 +746,9 @@ void EffectSetting::InitializeDialog(HWND dialog)
         // effect item description callback
         ctl = GetDlgItem(dialog,IDC_MGEF_DESCRIPTORCALLBACK);
         TESComboBox::PopulateWithScripts(ctl,true,false,false);
+        TESComboBox::AddItem(ctl,"< Magnitude is % >",(void*)EffectSetting::kMgefFlagShift_MagnitudeIsPercent);
+        TESComboBox::AddItem(ctl,"< Magnitude is Level >",(void*)EffectSetting::kMgefFlagShift_MagnitudeIsLevel);
+        TESComboBox::AddItem(ctl,"< Magnitude is Feet >",(void*)EffectSetting::kMgefFlagShift_MagnitudeIsFeet);
         // counter list columns
         ctl = GetDlgItem(dialog,IDC_MGEF_COUNTEREFFECTS);
         TESListView::ClearColumns(ctl);
@@ -718,6 +758,7 @@ void EffectSetting::InitializeDialog(HWND dialog)
         // counter effect add list
         ctl = GetDlgItem(dialog,IDC_MGEF_COUNTEREFFECTCHOICES);
         TESComboBox::PopulateWithForms(ctl,TESForm::kFormType_EffectSetting,true,false);
+    }
 
     // DYNAMICS
         // Cost Callbacks
@@ -773,7 +814,7 @@ void EffectSetting::InitializeDialog(HWND dialog)
         TESComboBox::Clear(ctl);
         UInt32 ehCode = 0;
         const char* ehName = 0;
-        while (EffectSettingHandler::GetNextHandler(ehCode,ehName))
+        while (EffectHandler::GetNextHandler(ehCode,ehName))
         {
             TESComboBox::AddItem(ctl,ehName,(void*)ehCode);
         }
@@ -786,6 +827,7 @@ bool EffectSetting::DialogMessageCallback(HWND dialog, UINT uMsg, WPARAM wParam,
     char buffer[0x50];
     void* curData;
 
+    // parse message
     switch (uMsg)
     {
     case WM_USERCOMMAND:
@@ -812,7 +854,7 @@ bool EffectSetting::DialogMessageCallback(HWND dialog, UINT uMsg, WPARAM wParam,
                     EnableWindow(ctl,true);
                 }
                 SetWindowText(ctl,buffer);
-                return false;     
+                result = 0; return true;   // retval = false signals command handled    
             }
             break;
         case IDC_MGEF_ADDCOUNTER:     // Add Counter Effect button
@@ -827,7 +869,7 @@ bool EffectSetting::DialogMessageCallback(HWND dialog, UINT uMsg, WPARAM wParam,
                     ListView_SortItems(ctl,TESFormIDListView::FormListComparator,GetWindowLong(ctl,GWL_USERDATA)); // (re)sort items
                     TESListView::ForceSelectItem(ctl,TESListView::LookupByData(ctl,curData)); // force select new entry
                 }
-                return false;
+                result = 0; return true;    // retval = false signals command handled
             }
             break;
         case IDC_MGEF_REMOVECOUNTER:    // Remove Counter effect button
@@ -839,7 +881,7 @@ bool EffectSetting::DialogMessageCallback(HWND dialog, UINT uMsg, WPARAM wParam,
                 {
                     ListView_DeleteItem(ctl,i);
                 }
-                return false;
+                result = 0; return true;    // retval = false signals command handled   
             }
             break;
         case IDC_MGEF_HANDLER:  // Handler selection combo box
@@ -850,7 +892,7 @@ bool EffectSetting::DialogMessageCallback(HWND dialog, UINT uMsg, WPARAM wParam,
                 ctl = GetDlgItem(dialog,IDC_MGEF_HANDLER);
                 // create a new handler if necessary
                 UInt32 ehCode = (UInt32)TESComboBox::GetCurSelData(ctl);
-                if (ehCode != GetHandler().HandlerCode()) SetHandler(EffectSettingHandler::Create(ehCode,*this));
+                if (ehCode != GetHandler().HandlerCode()) SetHandler(MgefHandler::Create(ehCode,*this));
                 // change dialog templates if necessary
                 DialogExtraSubwindow* extraSubwindow = (DialogExtraSubwindow*)GetWindowLong(ctl,GWL_USERDATA);
                 if (extraSubwindow && GetHandler().DialogTemplateID() != extraSubwindow->dialogTemplateID)
@@ -875,6 +917,8 @@ bool EffectSetting::DialogMessageCallback(HWND dialog, UINT uMsg, WPARAM wParam,
                     TESDialog::BuildSubwindow(GetHandler().DialogTemplateID(),subwindow);
                     // add subwindow extra data to parent
                     extraSubwindow = TESDialog::AddDialogExtraSubwindow(dialog,GetHandler().DialogTemplateID(),subwindow);
+                    // initialize
+                    GetHandler().InitializeDialog(dialog);
                     // hide controls if handler tab is nto selected
                     int cursel = TabCtrl_GetCurSel(GetDlgItem(dialog,IDC_MGEF_TABS));
                     if (cursel < 0 || kTabTemplateID[cursel] != IDD_MGEF_HANDLER)
@@ -889,7 +933,7 @@ bool EffectSetting::DialogMessageCallback(HWND dialog, UINT uMsg, WPARAM wParam,
                 SetWindowLong(ctl,GWL_USERDATA,(UInt32)extraSubwindow);
                 // set handler in dialog
                 GetHandler().SetInDialog(dialog);
-                return false;
+                result = 0; return true;  // retval = false signals command handled
             }
             break;
         }
@@ -907,20 +951,23 @@ bool EffectSetting::DialogMessageCallback(HWND dialog, UINT uMsg, WPARAM wParam,
                 // current tab is about to be unselected
                 _VMESSAGE("Tab hidden");
                 ShowTabSubwindow(dialog,TabCtrl_GetCurSel(nmhdr->hwndFrom),false);
-                return false;
+                result = 0; return true;   // retval = false to allow change
             }
             else if (nmhdr->code == TCN_SELCHANGE)
             {
                 // current tab was just selected
                 _VMESSAGE("Tab Shown");
                 ShowTabSubwindow(dialog,TabCtrl_GetCurSel(nmhdr->hwndFrom),true);  
-                return false;
+                return true;  // no retval
             }
             break;
         }
         break;
     }
     }
+    // invoke handler msg callback
+    if (GetHandler().DialogMessageCallback(dialog,uMsg,wParam,lParam,result)) return true;
+    // invoke base class msg callback
     return ::EffectSetting::DialogMessageCallback(dialog,uMsg,wParam,lParam,result);
 }
 void EffectSetting::SetInDialog(HWND dialog)
@@ -955,7 +1002,11 @@ void EffectSetting::SetInDialog(HWND dialog)
         // school
         TESComboBox::SetCurSelByData(GetDlgItem(dialog,IDC_MGEF_SCHOOL),(void*)school);
         // effect item description callback
-        TESComboBox::SetCurSelByData(GetDlgItem(dialog,IDC_MGEF_DESCRIPTORCALLBACK),0/*TODO*/);
+        void* nameFormat = 0;  // TODO - get mgef member
+        if (GetFlag(kMgefFlagShift_MagnitudeIsLevel)) nameFormat = (void*)kMgefFlagShift_MagnitudeIsLevel;
+        if (GetFlag(kMgefFlagShift_MagnitudeIsFeet)) nameFormat = (void*)kMgefFlagShift_MagnitudeIsFeet;
+        if (GetFlag(kMgefFlagShift_MagnitudeIsPercent)) nameFormat = (void*)kMgefFlagShift_MagnitudeIsPercent;
+        TESComboBox::SetCurSelByData(GetDlgItem(dialog,IDC_MGEF_DESCRIPTORCALLBACK),nameFormat);
         // counter effects
         ctl = GetDlgItem(dialog,IDC_MGEF_COUNTEREFFECTS);
         TESListView::ClearItems(ctl);
@@ -1018,6 +1069,7 @@ void EffectSetting::SetInDialog(HWND dialog)
         TESComboBox::SetCurSelByData(GetDlgItem(dialog,IDC_MGEF_HANDLER),(void*)GetHandler().HandlerCode()); 
         SendNotifyMessage(dialog, WM_USERCOMMAND,(CBN_SELCHANGE << 0x10) | IDC_MGEF_HANDLER,  // trigger CBN_SELCHANGED event
                                     (LPARAM)GetDlgItem(dialog,IDC_MGEF_HANDLER));
+        GetHandler().SetInDialog(dialog);
     }
 
     // FLAGS
@@ -1044,7 +1096,11 @@ void EffectSetting::GetFromDialog(HWND dialog)
         GetWindowText(GetDlgItem(dialog,IDC_MGEF_MGEFCODE),buffer,sizeof(buffer));
         mgefCode = strtoul(buffer,0,16);  // TODO - validation?
         // effect item description callback
-        /*TODO = */ TESComboBox::GetCurSelData(GetDlgItem(dialog,IDC_MGEF_DESCRIPTORCALLBACK));
+        UInt32 nameFormat = (UInt32)TESComboBox::GetCurSelData(GetDlgItem(dialog,IDC_MGEF_DESCRIPTORCALLBACK));
+        SetFlag(kMgefFlagShift_MagnitudeIsPercent, nameFormat == kMgefFlagShift_MagnitudeIsPercent);
+        SetFlag(kMgefFlagShift_MagnitudeIsLevel, nameFormat == kMgefFlagShift_MagnitudeIsLevel);
+        SetFlag(kMgefFlagShift_MagnitudeIsFeet, nameFormat == kMgefFlagShift_MagnitudeIsFeet);
+        // ... TODO - mgef member = (nameFormat > 0xFF) ? (DataT*)nameFormat : 0;
         // counter effects
         ctl = GetDlgItem(dialog,IDC_MGEF_COUNTEREFFECTS);        
         if (counterArray) {MemoryHeap::FormHeapFree(counterArray); counterArray = 0;} // clear current counter array
@@ -1088,12 +1144,14 @@ void EffectSetting::GetFromDialog(HWND dialog)
     // HANDLER
     {
         UInt32 ehCode = (UInt32)TESComboBox::GetCurSelData(GetDlgItem(dialog,IDC_MGEF_HANDLER));
-        if (ehCode != GetHandler().HandlerCode()) SetHandler(EffectSettingHandler::Create(ehCode,*this));          
+        if (ehCode != GetHandler().HandlerCode()) SetHandler(MgefHandler::Create(ehCode,*this));          
         GetHandler().GetFromDialog(dialog);
     }
 
     // FLAGS
     for (int i = 0; i < 0x40; i++) {if (GetDlgItem(dialog,IDC_MGEF_FLAGEXBASE + i)) { SetFlag(i,IsDlgButtonChecked(dialog,IDC_MGEF_FLAGEXBASE + i)); }}
+
+    _DMESSAGE("Comparing ... %i",CompareTo(*TESDialog::GetFormEditParam(dialog)));
 
 }
 void EffectSetting::CleanupDialog(HWND dialog)
@@ -1264,9 +1322,9 @@ bool EffectSetting::RequiresObmeMgefChunks()
     if ((mgefObmeFlags & kMgefObmeFlag_Beneficial) && GetDefaultHostility(mgefCode) != Magic::kHostility_Beneficial) return BoolEx(kReqOBME_BeneficialFlag);
 
     // Effect Handler - must differ from default handler object
-    UInt32 defHandlerCode = EffectSettingHandler::GetDefaultHandlerCode(mgefCode);
+    UInt32 defHandlerCode = EffectHandler::GetDefaultHandlerCode(mgefCode);
     if (defHandlerCode != GetHandler().HandlerCode()) return BoolEx(kReqOBME_Handler);
-    EffectSettingHandler* defHandler = EffectSettingHandler::Create(defHandlerCode,*this);
+    MgefHandler* defHandler = MgefHandler::Create(defHandlerCode,*this);
     bool handlerNoMatch = defHandler->CompareTo(GetHandler());
     delete defHandler;
     if (handlerNoMatch) return BoolEx(kReqOBME_Handler);
@@ -1576,35 +1634,18 @@ UInt32 EffectSetting::GetUnusedStaticCode()
     }
     return kMgefCode_None;
 }
-bool EffectSetting::ResolveModMgefCode(UInt32& mgefCode, TESFile& file)
-{
-    // returns invalid code on failure
-    if (!IsMgefCodeValid(mgefCode)) return false;        
-    if (!IsMgefCodeDynamic(mgefCode)) return true;   // code is not dynamic
-    UInt32 fmid = (mgefCode << 0x18) | 0x950;                   // use a dummy formid
-    if (ResolveFormID(fmid,file)) 
-    {
-        mgefCode = (mgefCode & 0xFFFFFF00) | (fmid >> 0x18);
-        return IsMgefCodeValid(mgefCode);
-    }
-    else 
-    {
-        mgefCode = kMgefCode_Invalid;
-        return false;
-    }    
-}
 // effect handler
-EffectSettingHandler& EffectSetting::GetHandler()
+MgefHandler& EffectSetting::GetHandler()
 {    
     if (!effectHandler)
     {
         // this effect has no handler, create a default handler
-        effectHandler = EffectSettingHandler::Create(EffectHandlerBase::GetDefaultHandlerCode(mgefCode),*this);
-        if (!effectHandler) effectHandler = EffectSettingHandler::Make(*this);  // default handler not yet implemented - should never happen in release version
+        effectHandler = MgefHandler::Create(EffectHandler::GetDefaultHandlerCode(mgefCode),*this);
+        if (!effectHandler) effectHandler = MgefHandler::Create('VTCA',*this);  // default handler not yet implemented - should never happen in release version
     }
     return *effectHandler;
 }
-void EffectSetting::SetHandler(EffectSettingHandler* handler)
+void EffectSetting::SetHandler(MgefHandler* handler)
 {
     if (effectHandler) delete effectHandler;    // clear current handler
     effectHandler = handler;
@@ -1768,7 +1809,7 @@ void _declspec(naked) TESDataHandler_LoadMgef_Hndl(void)
         if (EffectSetting::IsMgefCodeValid(mgefCode))
         {
             // resolve code
-            ResolveModValue(mgefCode,*file,kResolutionType_MgefCode);
+            TESFileFormats::ResolveModValue(mgefCode,*file,TESFileFormats::kResolutionType_MgefCode);
             // search for already created effect with this code
             EffectSetting* mgef = dynamic_cast<EffectSetting*>(form);
             if (mgef && mgef->mgefCode == mgefCode)

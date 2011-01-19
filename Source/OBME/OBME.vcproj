@@ -345,15 +345,11 @@
 				>
 			</File>
 			<File
-				RelativePath=".\EffectHandlers\GenericEffectHandler.h"
+				RelativePath=".\EffectHandlers\ValueModifierEffect.cpp"
 				>
 			</File>
 			<File
-				RelativePath=".\EffectHandlers\ValueModifierEffectHandler.cpp"
-				>
-			</File>
-			<File
-				RelativePath=".\EffectHandlers\ValueModifierEffectHandler.h"
+				RelativePath=".\EffectHandlers\ValueModifierEffect.h"
 				>
 			</File>
 		</Filter>
@@ -375,14 +371,6 @@
 		</File>
 		<File
 			RelativePath=".\EffectSetting.rc.h"
-			>
-		</File>
-		<File
-			RelativePath=".\LoadOrderResolution.cpp"
-			>
-		</File>
-		<File
-			RelativePath=".\LoadOrderResolution.h"
 			>
 		</File>
 		<File

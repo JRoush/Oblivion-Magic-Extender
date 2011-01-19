@@ -145,19 +145,22 @@ Indiv. Active Effects:
     -   if target is a summon, attempt to dispel the summon effect from the caster
         if target is an ordinary actor, attempt to dispel to all of the their summon effects
         otherwise, do nothing
--   ModifyActorValue:
-    -   modifies specified part of specified AV
-    -   magnitude is points or percentage to add/subtract per second
-	-	Param: actor value
-    -   FlagA is set if effect reduces AV rather than increasing it
-    -   FlagC is set if magnitude is a percentage rather than raw points
-    -   FlagB is set if avCode may be overridden in spellmaking menu
-    -   ParamA is default avCode.  Use the invalid code to indicate 'None'. 
-    -   efitParam is actual avCode.  Use the invalid code to indicate 'None'. 
-    -   Low word of ParamB - each bit enables a group of AVs as valid choices (see Actor.h for enumeration of AV groups) 
-    -   High word of ParamB - which modifier to affect, including a flag to use 'Base' modifier for ability affects on player
-    -	Absorb:
-        -   All changes to target's AV's are mirrored but opposite on caster
++   ValueModifierEffect:
+    +   modifies specified part of specified AV
+    +   Magnitude is AV points or a (percentage, source modifier) to add/subtract (depending on Detrimental flag)
+    +   AV is changed only once if recoverable flag is set and is restored when effect expires
+        AV is changes every second if recoverable flag is not set
+	+	Targets a specific modifier
+    +   Bounds checking: base modifier cannot drop below zero for some select avs.
+    +   Uses AV field of effect items if (!UsesAV || UsesAttribute || UseSkill) flag OR (AV field override) EfitHandler flag
+        If AV field of effect item is used, AV field of mgef is the 'default' value
+    +   UseAttribute & UseSkill flags used for spellmaking + enchanting menu
+    +   Subtract effects may have an option to limit subtraction at the 0,1 point of the total av 
+        If limit is reached, alters magnitude for recoverable & terminates effect otherwise
+    +	Absorb:
+        +   All changes to target's AV's are mirrored but opposite on caster
+        +   Effect terminates if distance between caster & target grows beyond set limit
+        +   Percentage magnitudes are of target for detrimental, of caster for incremental
 -   EnvironmentalDamage:
     -   Applies damage depending on environmental conditions of target location?
     -   Weather, time of day, etc?

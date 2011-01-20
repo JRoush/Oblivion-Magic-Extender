@@ -34,6 +34,46 @@ namespace OBME {
 // global method for returning small enumerations as booleans
 inline bool BoolEx(UInt8 value) {return *(bool*)&value;}
 
+// structs representing major MGEF chunk types
+struct EffectSettingObmeChunk   // OBME chunk
+{// size 30
+    MEMBER /*00*/ UInt32        obmeRecordVersion;  // version
+    MEMBER /*04*/ UInt8         _mgefParamResType;  // [deprecated] Resolution Type, for mgefParam, redundant to mgefFlags
+    MEMBER /*05*/ UInt8         _mgefParamBResType; // [deprecated, must be 0] Resolution Type
+    MEMBER /*06*/ UInt16        reserved06;
+    MEMBER /*08*/ UInt32        effectHandler;      // effect handler code
+    MEMBER /*0C*/ UInt32        mgefObmeFlags;      // bitmask
+    MEMBER /*10*/ UInt32        _mgefParamB;        // [deprecated, must be 0]
+    MEMBER /*14*/ UInt32        reserved14[7];
+};
+struct EffectSettingDataChunk   // DATA chunk
+{// size 40
+    MEMBER /*00*/ UInt32        mgefFlags;      // bitmask
+    MEMBER /*04*/ float         baseCost;
+    MEMBER /*08*/ UInt32        mgefParam;      // formid, extended enum, or neither, depending on vanilla flags
+    MEMBER /*0C*/ UInt32        school;         // extended enum
+    MEMBER /*10*/ UInt32        resistAV;       // extended enum
+    MEMBER /*14*/ UInt16        numCounters;
+    MEMBER /*16*/ UInt16        pad16;
+    MEMBER /*18*/ UInt32        light;          // formid
+    MEMBER /*1C*/ float         projSpeed;
+    MEMBER /*20*/ UInt32        effectShader;   // formid
+    MEMBER /*24*/ UInt32        enchantShader;  // formid
+    MEMBER /*28*/ UInt32        castingSound;   // formid
+    MEMBER /*2C*/ UInt32        boltSound;      // formid
+    MEMBER /*30*/ UInt32        hitSound;       // formid
+    MEMBER /*34*/ UInt32        areaSound;      // formid
+    MEMBER /*38*/ float         enchantFactor;
+    MEMBER /*3C*/ float         barterFactor;
+};
+struct EffectSettingDatxChunk   // DATX chunk, deprecated as of v1.beta4 but kept for compatibility
+{// size 20
+    MEMBER /*00*/ UInt32        effectHandler;      // effect handler code
+    MEMBER /*04*/ UInt32        mgefFlagOverrides;  // bitmask
+    MEMBER /*08*/ UInt32        mgefParamB;         // 
+    MEMBER /*0C*/ UInt32        reserved0C[5];
+};
+
 // memory patch & hook addresses
 memaddr EffectSetting_Vtbl                      (0x00A32B14,0x0095C914);
 memaddr EffectSetting_Create                    (0x004165E0,0x0);
@@ -63,15 +103,32 @@ bool EffectSetting::LoadForm(TESFile& file)
 
     // initialize form from record
     file.InitializeFormFromRecord(*this);
-    loadFlags = 0;    // no fields loaded
+
+    // flags for indicating what chunks have been loaded
+    enum EffectSettingChunks
+    {
+        kMgefChunk_Edid     = 0x00000001,
+        kMgefChunk_Eddx     = 0x00000002,
+        kMgefChunk_Full     = 0x00000004,
+        kMgefChunk_Desc     = 0x00000008,
+        kMgefChunk_Icon     = 0x00000010,
+        kMgefChunk_Modl     = 0x00000020,
+        kMgefChunk_Data     = 0x00000040,
+        kMgefChunk_Datx     = 0x00000080, // deprecated since v1 beta4
+        kMgefChunk_Esce     = 0x00000100,
+        kMgefChunk_Obme     = 0x00000200,
+        kMgefChunk_Ehnd     = 0x00000400,
+    }; 
+    UInt32 loadFlags = 0;    // no chunks loaded
     UInt32 loadVersion = VERSION_VANILLA_OBLIVION;
 
-    // these parameters belong in the effect handler, but were stored in the OBME chunk in v1 - require temporary storage
-    UInt32 _handlerCode = EffectHandler::GetDefaultHandlerCode(mgefCode);
-    UInt32 _handlerParamARes = 0;
-    UInt32 _handlerParamB = 0;   
-    UInt32 _handlerFlags = 0;
-    UInt32 _handlerFlagMask = 0x00190004; // 'Param' flags, now repurposed
+    // reserve storage for chunk data that needs version-specific processing
+    EffectSettingObmeChunk  obme;
+    EffectSettingDataChunk  data;
+    EffectSettingDatxChunk  datx;
+    struct {UInt32* counters; UInt32  count;} esce = {0,0};        
+    char edid[0x200];
+    MgefHandler* ehnd = 0;
 
     // loop over chunks until end of record (or invalid chunk)
     for(UInt32 chunktype = file.GetChunkType(); chunktype; chunktype = file.GetNextChunk() ? file.GetChunkType() : 0)
@@ -84,78 +141,54 @@ bool EffectSetting::LoadForm(TESFile& file)
         case 'EDID':
             // already processed by loading routine
             loadFlags |= kMgefChunk_Edid;
-            _DMESSAGE("EDID chunk: '%4.4s'",&mgefCode);
+            _VMESSAGE("EDID chunk: '%4.4s' {%08X}",&mgefCode,mgefCode);
             break;
 
-        // obme data, added in v1.beta4 (so version is guaranteed > VERSION_OBME_LASTUNVERSIONED)
+        // obme data, added in v1.beta4 (so version is guaranteed >= VERSION_OBME_FIRSTVERSIONED)
         case 'OBME': 
-            if (loadFlags & ~kMgefChunk_Edid)
-            {
-                gLog.PushStyle();
-                _ERROR("Unexpected chunk 'OBME' - must immediately follow chunk 'EDID'");
-                gLog.PopStyle();
-            }
-            EffectSettingObmeChunk obme;
+            if (~loadFlags & kMgefChunk_Edid) _WARNING("Unexpected chunk 'OBME' - must immediately follow chunk 'EDID'");
             memset(&obme,0,sizeof(obme));
             file.GetChunkData(&obme,sizeof(obme));
-             // version
-            loadVersion = obme.obmeRecordVersion;
-            // effect handler code
-            _handlerCode = obme.effectHandler;            
-            // flags
-            mgefObmeFlags = obme.mgefObmeFlags & ~_handlerFlagMask; // 'Param' now deprecated
-            // handler parameters
-            if (loadVersion < MAKE_VERSION(2,0,0,0))
-            {       
-                // v1 used shared handler params and embedded resolution info
-                _handlerParamB = obme._mgefParamB;
-                TESFileFormats::ResolveModValue(_handlerParamB,file,obme._mgefParamBResType); // resolve ParamB
-                _handlerFlags = obme.mgefObmeFlags & _handlerFlagMask; // 'Param' flags
-                _handlerParamARes = obme._mgefParamResType; // store mgefParam format info 
-            }
-            // done   
             loadFlags |= kMgefChunk_Obme;
-            _DMESSAGE("OBME chunk: version {%08X}",obme.obmeRecordVersion);
+            _VMESSAGE("OBME chunk: version {%08X}, handler {%08X}",obme.obmeRecordVersion,obme.effectHandler);
             break;
 
         // obme auxiliary data pre-v1.beta4
         case 'DATX':
-            // early beta didn't write version or resolution info, assume latest unversioned build
-            loadVersion = VERSION_OBME_LASTUNVERSIONED; 
-            // done
+            if (~loadFlags & kMgefChunk_Data) _WARNING("Unexpected chunk 'DATX' - must come after chunk 'DATA'");
+            memset(&datx,0,sizeof(datx));
+            file.GetChunkData(&datx,sizeof(datx));
             loadFlags |= kMgefChunk_Datx;
-            _ERROR("DATX chunk: assumed version {%08X} - this version is no longer supported",loadVersion);
+            _VMESSAGE("DATX chunk, handler {%08X}",datx.effectHandler);
             break;
 
         // actual editor id
-        case 'EDDX':            
-            char edid[0x200];
+        case 'EDDX':               
             memset(edid,0,sizeof(edid));
             file.GetChunkData(edid,sizeof(edid));
-            SetEditorID(edid);
             loadFlags |= kMgefChunk_Eddx;
-            _DMESSAGE("EDDX chunk: '%s'",edid);
+            _VMESSAGE("EDDX chunk: '%s'",edid);
             break;
 
         // name
         case 'FULL':            
             TESFullName::LoadComponent(*this,file);
             loadFlags |= kMgefChunk_Full;
-            _DMESSAGE("FULL chunk: '%s'",name.c_str());
+            _VMESSAGE("FULL chunk: '%s'",name.c_str());
             break;
 
         // description
         case 'DESC':            
             TESDescription::LoadComponent(*this,file);
             loadFlags |= kMgefChunk_Desc;
-            _DMESSAGE("DESC chunk: '%s'",GetDescription(this,Swap32('DESC')));
+            _VMESSAGE("DESC chunk: '%s'",GetDescription(this,Swap32('DESC')));
             break;
 
         // icon
         case 'ICON':            
             TESIcon::LoadComponent(*this,file);
             loadFlags |= kMgefChunk_Icon;
-            _DMESSAGE("ICON chunk: path '%s'",texturePath.c_str());
+            _VMESSAGE("ICON chunk: path '%s'",texturePath.c_str());
             break;
 
         // model
@@ -164,177 +197,170 @@ bool EffectSetting::LoadForm(TESFile& file)
         case 'MODT':            
             TESModel::LoadComponent(*this,file);
             loadFlags |= kMgefChunk_Modl;
-            _DMESSAGE("%4.4s chunk: path '%s'",&chunktype,ModelPath());
+            _VMESSAGE("%4.4s chunk: model path '%s'",&chunktype,ModelPath());
             break;
 
         // main effect data
         case 'DATA':
-            // clear counter array
-            SetCounterEffects(0,NULL);
-            // load data
-            EffectSettingDataChunk data;
-            memset(&data,0,sizeof(data));
-            file.GetChunkData(&data,sizeof(data));
-            // VFX forms, AFX forms
-            TESFileFormats::ResolveModValue(data.light,file,TESFileFormats::kResolutionType_FormID);
-            TESFileFormats::ResolveModValue(data.effectShader,file,TESFileFormats::kResolutionType_FormID);
-            TESFileFormats::ResolveModValue(data.enchantShader,file,TESFileFormats::kResolutionType_FormID);
-            TESFileFormats::ResolveModValue(data.castingSound,file,TESFileFormats::kResolutionType_FormID);
-            TESFileFormats::ResolveModValue(data.boltSound,file,TESFileFormats::kResolutionType_FormID);
-            TESFileFormats::ResolveModValue(data.hitSound,file,TESFileFormats::kResolutionType_FormID);
-            TESFileFormats::ResolveModValue(data.areaSound,file,TESFileFormats::kResolutionType_FormID);
-            // resistance AV
-            TESFileFormats::ResolveModValue(data.resistAV,file,TESFileFormats::kResolutionType_ActorValue);
-            // school
-            TESFileFormats::ResolveModValue(data.school,file,TESFileFormats::kResolutionType_FormID);
-            // handler parameter
-            if (loadVersion >= VERSION_VANILLA_OBLIVION && loadVersion < MAKE_VERSION(2,0,0,0))
-            {                
-                TESFileFormats::ResolveModValue(data.mgefParam,file,_handlerParamARes); // resolve mgefParam using v1 embedded resolution info
-            }
-            else if (data.mgefFlags & (kMgefFlag_UseWeapon | kMgefFlag_UseArmor | kMgefFlag_UseActor))
+            if (file.currentChunk.chunkLength == sizeof(data))
             {
-                TESFileFormats::ResolveModValue(data.mgefParam,file,TESFileFormats::kResolutionType_FormID); // param is a summoned formID
+                // normal DATA chunk
+                memset(&data,0,sizeof(data));
+                file.GetChunkData(&data,sizeof(data));
+                loadFlags |= kMgefChunk_Data;
+                _VMESSAGE("DATA chunk: flags {%08X}",data.mgefFlags);
             }
-            else if (data.mgefFlags & kMgefFlag_UseActorValue)
+            else if (file.currentChunk.chunkLength == sizeof(data) + sizeof(datx))
             {
-                TESFileFormats::ResolveModValue(data.mgefParam,file,TESFileFormats::kResolutionType_ActorValue); // param is a modified avCode
+                // extended DATA chunk from v1.beta1
+                UInt8* buffer = new UInt8[file.currentChunk.chunkLength];
+                file.GetChunkData(buffer,0);
+                memcpy(&data,buffer,sizeof(data));
+                memcpy(&datx,buffer+sizeof(data),sizeof(datx));
+                delete buffer;
+                loadFlags |= kMgefChunk_Data | kMgefChunk_Datx;
+                _VMESSAGE("DATA chunk (extended): flags {%08X}, handler {%08X}",data.mgefFlags,datx.effectHandler);
             }
-            // mgefFlags
-            if (loadVersion == VERSION_VANILLA_OBLIVION)
-            {
-                // vanilla records can only override flags under this mask
-                data.mgefFlags &= 0x0FE03C00;
-                data.mgefFlags |= (mgefFlags & ~0x0FE03C00);
-            }
-            data.mgefFlags &= ~kMgefFlag_PCHasEffect;   // clear PCHasEffect flag
-            // copy data to object
-            memcpy(&mgefFlags,&data,sizeof(data));
-            SetResistAV(data.resistAV); // standardize resistance value
-            // initialize newer OBME-added fields that weren't included in older/vanilla versions
-
-            if (loadVersion == VERSION_VANILLA_OBLIVION)
-            {
-                // clear obme flags
-                mgefObmeFlags = 0;
-                // set default hostility (since hostile flag can't be overriden by vanilla records anyway)
-                SetHostility(GetDefaultHostility(mgefCode));
-            }
-            else if (loadVersion <= VERSION_OBME_LASTUNVERSIONED)
-            {
-                // no fields yet that weren't in DATX chunk
-            }
-            else if (loadVersion < MAKE_VERSION(2,0,0,0))
-            {
-                // no fields yet that weren't in OBME v1 chunk
-            }
-            // done
-            loadFlags |= kMgefChunk_Data;
-            _DMESSAGE("DATA chunk: flags {%08X}",mgefFlags);
             break;
 
         // counter effects by code
-        case 'ESCE':            
-            if (loadFlags & kMgefChunk_Data)
-            {
-                if (numCounters > 0)
-                {
-                    // a data chunk is required in order to know size of counter array
-                    UInt32* counters = new UInt32[numCounters];
-                    memset(counters,0,numCounters * sizeof(UInt32)); 
-                    file.GetChunkData(counters,numCounters * sizeof(UInt32));
-                    SetCounterEffects(numCounters,counters);
-                    // resolve counter effect codes
-                    for (int c = 0; c < numCounters; c++) TESFileFormats::ResolveModValue(counterArray[c],file,TESFileFormats::kResolutionType_MgefCode);
-                }
-                // done
-                loadFlags |= kMgefChunk_Esce;
-                _DMESSAGE("ESCE chunk: %i counters",numCounters);
-            }
-            else 
-            {
-                gLog.PushStyle();
-                _ERROR("Unexpected chunk 'ESCE' - must come after chunk 'DATA'");
-                gLog.PopStyle();
-            }
+        case 'ESCE':               
+            if (~loadFlags & kMgefChunk_Data) _WARNING("Unexpected chunk 'ESCE' - must come after chunk 'DATA'");
+            esce.count = file.currentChunk.chunkLength / 4;
+            if (esce.counters) MemoryHeap::FormHeapFree(esce.counters); // clear any data from previously loaded ESCE chunk
+            esce.counters = (UInt32*)MemoryHeap::FormHeapAlloc(esce.count * 4);
+            file.GetChunkData(esce.counters,esce.count * 4);
+            // done
+            loadFlags |= kMgefChunk_Esce;
+            _DMESSAGE("ESCE chunk: %i counters",esce.count);
             break;
 
         // effect handler, added in v2 (so version is guaranteed > VERSION_OBME_LASTV1)
         case 'EHND':
             if (loadFlags & kMgefChunk_Obme)
             {
-                MgefHandler* handler = MgefHandler::Create(_handlerCode,*this);  // attempt to create handler from _handlerCode
-                if (!handler)
-                {
-                    // invalid handler code
-                    gLog.PushStyle();
-                    _ERROR("Unrecognized EffectHandler code '%4.4s' (%08X)", &_handlerCode, _handlerCode); 
-                    gLog.PopStyle();
-                } 
-                SetHandler(handler); // set handler to new handler, or a default if the new handler code was invalid
-                GetHandler().LoadHandlerChunk(file,loadVersion);
-                loadFlags |= kMgefChunk_Ehnd;
-                _DMESSAGE("EHND chunk: handler '%s' {%08X}",GetHandler().HandlerName(),GetHandler().HandlerCode()); 
+                if (ehnd) delete ehnd;   // clear any data from previously loaded EHND chunk
+                ehnd = MgefHandler::Create(obme.effectHandler,*this);   // create handler from code
+                if (ehnd) ehnd->LoadHandlerChunk(file,obme.obmeRecordVersion); // load handler data
+                else _ERROR("Unrecognized EffectHandler code '%4.4s' (%08X)", &obme.effectHandler, obme.effectHandler);              
+                _VMESSAGE("EHND chunk"); 
             }
-            else 
-            {
-                gLog.PushStyle();
-                _ERROR("Unexpected chunk 'EHND' - must come after chunk 'OBME'");
-                gLog.PopStyle();
-            }
+            else _WARNING("Unexpected chunk 'EHND' - must come after chunk 'OBME'");
+            // done
+            loadFlags |= kMgefChunk_Ehnd;
             break;
 
         // unrecognized chunk type
         default:
-            gLog.PushStyle();
             _WARNING("Unexpected chunk '%4.4s' {%08X} w/ size %08X", &chunktype, chunktype, file.currentChunk.chunkLength);
-            gLog.PopStyle();
             break;
 
         }
         // continue to next chunk
     } 
 
-    // handle case of missing counter list
-    if ((loadFlags & kMgefChunk_Data) && (~loadFlags & kMgefChunk_Esce) && numCounters)
-    {
-        gLog.PushStyle();
-        _ERROR("Expected chunk 'ESCE' with %i counter effects not found", numCounters);
-        numCounters = 0;    // zero out number of counters
-        gLog.PopStyle();
-    }
+    // process record version
+    if (loadFlags & kMgefChunk_Obme) loadVersion = obme.obmeRecordVersion;
+    else if (loadFlags & kMgefChunk_Datx) loadVersion = VERSION_OBME_LASTUNVERSIONED;  // assume last "unversioned" version
+    else loadVersion = VERSION_VANILLA_OBLIVION;
+    _DMESSAGE("Final Record Version %08X",loadVersion);
 
-    // Handle case of missing DATA chunk with OBME chunks
-    if ((loadFlags & kMgefChunk_Obme) && (~loadFlags & kMgefChunk_Data))
+    // process main data & auxiliary chunks
+    if (loadFlags & kMgefChunk_Data)
     {
-        gLog.PushStyle();
-        _ERROR("Expected chunk 'DATA' not found - records with 'OBME' chunk must contain a 'DATA' chunk as well");
-        gLog.PopStyle();
-    }
-
-    // if no EDDX chunk loaded, use mgefCode as editorID
-    if (~loadFlags & kMgefChunk_Eddx)
-    {
-        char codestr[5] = {{0}};
-        *(UInt32*)codestr = mgefCode;
-        SetEditorID(codestr);
-        _DMESSAGE("Set EditorID: '%s'",GetEditorID());
-    }
-
-    // if missing EHND chunk, construct a default handler
-    if ((~loadFlags & kMgefChunk_Ehnd) && (loadFlags & (kMgefChunk_Obme | kMgefChunk_Data)))
-    {
-        MgefHandler* handler = MgefHandler::Create(_handlerCode,*this);  // attempt to create handler from _handlerCode
-        if (!handler)
+        // resolve simple references
+        TESFileFormats::ResolveModValue(data.light,file,TESFileFormats::kResolutionType_FormID); // Light
+        TESFileFormats::ResolveModValue(data.effectShader,file,TESFileFormats::kResolutionType_FormID); // EffectShader
+        TESFileFormats::ResolveModValue(data.enchantShader,file,TESFileFormats::kResolutionType_FormID); // EnchantmentShader
+        TESFileFormats::ResolveModValue(data.castingSound,file,TESFileFormats::kResolutionType_FormID); // Cast Sound
+        TESFileFormats::ResolveModValue(data.boltSound,file,TESFileFormats::kResolutionType_FormID); // Bolt Sound
+        TESFileFormats::ResolveModValue(data.hitSound,file,TESFileFormats::kResolutionType_FormID); // Hit Sound
+        TESFileFormats::ResolveModValue(data.areaSound,file,TESFileFormats::kResolutionType_FormID); // Area Sound
+        TESFileFormats::ResolveModValue(data.resistAV,file,TESFileFormats::kResolutionType_ActorValue); // Resistance AV (for AddActorValues)
+        TESFileFormats::ResolveModValue(data.school,file,TESFileFormats::kResolutionType_FormID); // School (for extended school types)
+        // backup original DATA values that require special processing
+        UInt32 _mgefFlags = mgefFlags;
+        // copy DATA onto mgef
+        memcpy(&mgefFlags,&data,sizeof(data));
+        SetResistAV(data.resistAV); // standardize resistance value
+        // flags (mgef + obme)
+        if (loadVersion == VERSION_VANILLA_OBLIVION) 
+        {            
+            mgefFlags = (data.mgefFlags & 0x0FC03C00) | (_mgefFlags & ~0x0FE03C00);  // vanilla mgef records can't override all flags
+            mgefObmeFlags = 0;
+            SetHostility(GetDefaultHostility(mgefCode));
+        }
+        else if (loadVersion > VERSION_VANILLA_OBLIVION && loadVersion < MAKE_VERSION(2,0,0,0))
         {
-            // invalid handler code
-            gLog.PushStyle();
-            _ERROR("Unrecognized EffectHandler code '%4.4s' (%08X)", &_handlerCode, _handlerCode); 
-            gLog.PopStyle();
-        } 
-        SetHandler(handler); // set handler to new handler, or a default if the new handler code was invalid
-        // TODO - use _handlerParamB & _handlerFlags, depending on handler and version
-        _DMESSAGE("Created Handler: '%s' {%08X}",GetHandler().HandlerName(),GetHandler().HandlerCode()); 
+            mgefFlags = data.mgefFlags & ~EffectSetting::kMgefFlag_PCHasEffect;
+            _DMESSAGE("MgefFlags trimmed to %08X",mgefFlags);
+            mgefObmeFlags = datx.mgefFlagOverrides & ~0x00190004; // v1 'Param' flags not stored in obmeFlags field 
+        }
+        else
+        {
+            mgefFlags = data.mgefFlags & ~EffectSetting::kMgefFlag_PCHasEffect;
+            mgefObmeFlags = obme.mgefObmeFlags;
+        }
+        // counter effects
+        if (numCounters != esce.count) _WARNING("DATA chunk expects %i counter effects, but ESCE chunk contains %i", numCounters,esce.count);
+        if (counterArray) MemoryHeap::FormHeapFree(counterArray);
+        counterArray = esce.counters;
+        numCounters = esce.count;
+        for (int c = 0; c < numCounters; c++) TESFileFormats::ResolveModValue(counterArray[c],file,TESFileFormats::kResolutionType_MgefCode); // resolve codes
+        // handler & handler-specific parameters
+        if (loadVersion > VERSION_VANILLA_OBLIVION && loadVersion < MAKE_VERSION(2,0,0,0))
+        {
+            // get handler parameters from DATX or OBME chunk, depending on version
+            UInt32 ehCode = (loadVersion < VERSION_OBME_FIRSTVERSIONED) ? datx.effectHandler : obme.effectHandler;
+            UInt32 hParamA = mgefParam;
+            UInt32 hParamB = (loadVersion < VERSION_OBME_FIRSTVERSIONED) ? datx.mgefParamB : obme._mgefParamB;
+            UInt32 hFlags = (loadVersion < VERSION_OBME_FIRSTVERSIONED) ? datx.mgefFlagOverrides : obme.mgefObmeFlags;
+            // reset handler-specific param & flags on mgef proper
+            mgefParam = 0;
+            mgefFlags &= ~0x011F0000;   // leave Detrimental flag alone
+            // set handler
+            SetHandler(MgefHandler::Create(ehCode,*this));
+            if (ValueModifierMgefHandler* mdav = dynamic_cast<ValueModifierMgefHandler*>(&GetHandler()))
+            {
+                // AV source & AV
+                TESFileFormats::ResolveModValue(hParamA,file,TESFileFormats::kResolutionType_ActorValue);
+                TESFileFormats::ResolveModValue(hParamB,file,TESFileFormats::kResolutionType_ActorValue);
+                if (hParamA == ActorValues::kActorVal_Strength && hParamB == ActorValues::kActorVal_Luck) SetFlag(kMgefFlagShift_UseAttribute,true);
+                else if (hParamA == ActorValues::kActorVal_Armorer && hParamB == ActorValues::kActorVal_Speechcraft) SetFlag(kMgefFlagShift_UseSkill,true);
+                else 
+                {
+                    mgefParam = hParamA;
+                    SetFlag(kMgefFlagShift_UseActorValue,true);
+                }
+                // avPart
+                mdav->avPart = (hFlags >> (kMgefFlagShift__ParamFlagC-0x20)) & 0x3;
+                if (hFlags & kMgefObmeFlag__ParamFlagB) mdav->avPart = ValueModifierMgefHandler::kAVPart_MaxSpecial;
+            }
+            else // TODO - support other 3 handlers
+            {
+            } 
+        }
+        else
+        {
+            SetHandler((loadVersion == VERSION_VANILLA_OBLIVION) ? 0 : ehnd);
+            if (mgefFlags & (kMgefFlag_UseWeapon | kMgefFlag_UseArmor | kMgefFlag_UseActor))
+                TESFileFormats::ResolveModValue(mgefParam,file,TESFileFormats::kResolutionType_FormID); // param is a summoned formID
+            else if (mgefFlags & kMgefFlag_UseActorValue) 
+                TESFileFormats::ResolveModValue(mgefParam,file,TESFileFormats::kResolutionType_ActorValue); // param is a modified avCode
+        }
+    }
+
+    // process editorID
+    if (loadVersion > VERSION_VANILLA_OBLIVION && (loadFlags & kMgefChunk_Eddx)) // use EDDX chunk for non-vanilla records
+    {
+        SetEditorID(edid);
+    }
+    else if (loadVersion < MAKE_VERSION(2,0,0,0)) // use stringified mgefCode for vanilla records + v1 records w/o EDDX chunk
+    {
+        edid[4] = 0;
+        *(UInt32*)edid = mgefCode;
+        SetEditorID(edid);
+        _DMESSAGE("Autoset EditorID: '%s'",edid);
     }
 
     // done
@@ -436,29 +462,26 @@ void EffectSetting::LinkForm()
     if (formFlags & kFormFlags_Linked) return;  // form already linked
     _VMESSAGE("Linking %s", GetDebugDescEx().c_str()); 
 
-    if (loadFlags & kMgefChunk_Data)
-    {   
-        // resolve form light, sound, shaders formids into pointers
-        // NOTE: because TESSound, TESEffectShader, and TESObjectLIGH are not yet defined in COEF, the
-        // normal dynamic cast check on the form pointer is omitted.
-        // If any of these formIDs refer to forms of the wrong type, all hell will break loose.
-        castingSound = (TESSound*)TESForm::LookupByFormID((UInt32)castingSound);
-        boltSound = (TESSound*)TESForm::LookupByFormID((UInt32)boltSound);
-        hitSound = (TESSound*)TESForm::LookupByFormID((UInt32)hitSound);
-        areaSound = (TESSound*)TESForm::LookupByFormID((UInt32)areaSound);
-        effectShader = (TESEffectShader*)TESForm::LookupByFormID((UInt32)effectShader);
-        enchantShader = (TESEffectShader*)TESForm::LookupByFormID((UInt32)enchantShader);
-        light = (TESObjectLIGH*)TESForm::LookupByFormID((UInt32)light);
-        #ifndef OBLIVION
-        if (castingSound) ((TESForm*)castingSound)->AddReference(this);
-        if (boltSound) ((TESForm*)boltSound)->AddReference(this);
-        if (hitSound) ((TESForm*)hitSound)->AddReference(this);
-        if (effectShader) ((TESForm*)effectShader)->AddReference(this);
-        if (enchantShader) ((TESForm*)enchantShader)->AddReference(this);
-        if (light) ((TESForm*)light)->AddReference(this);
-        // TODO - school, resistanceAV
-        #endif
-    }
+    // resolve form light, sound, shaders formids into pointers
+    // NOTE: because TESSound, TESEffectShader, and TESObjectLIGH are not yet defined in COEF, the
+    // normal dynamic cast check on the form pointer is omitted.
+    // If any of these formIDs refer to forms of the wrong type, all hell will break loose.
+    castingSound = (TESSound*)TESForm::LookupByFormID((UInt32)castingSound);
+    boltSound = (TESSound*)TESForm::LookupByFormID((UInt32)boltSound);
+    hitSound = (TESSound*)TESForm::LookupByFormID((UInt32)hitSound);
+    areaSound = (TESSound*)TESForm::LookupByFormID((UInt32)areaSound);
+    effectShader = (TESEffectShader*)TESForm::LookupByFormID((UInt32)effectShader);
+    enchantShader = (TESEffectShader*)TESForm::LookupByFormID((UInt32)enchantShader);
+    light = (TESObjectLIGH*)TESForm::LookupByFormID((UInt32)light);
+    #ifndef OBLIVION
+    if (castingSound) ((TESForm*)castingSound)->AddReference(this);
+    if (boltSound) ((TESForm*)boltSound)->AddReference(this);
+    if (hitSound) ((TESForm*)hitSound)->AddReference(this);
+    if (effectShader) ((TESForm*)effectShader)->AddReference(this);
+    if (enchantShader) ((TESForm*)enchantShader)->AddReference(this);
+    if (light) ((TESForm*)light)->AddReference(this);
+    // TODO - school, resistanceAV
+    #endif
     
     GetHandler().LinkHandler(); // link handler object
 
@@ -1669,7 +1692,6 @@ EffectSetting::EffectSetting()
     // initialize new fields
     effectHandler = 0;
     mgefObmeFlags = 0x0;
-    loadFlags = 0xFFFFFFFF;   // all fields 'loaded'
 }
 EffectSetting::~EffectSetting()
 {

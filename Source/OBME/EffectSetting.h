@@ -81,57 +81,6 @@ public:
         kMgefFlagShift_HideInMenus          = 0x3E,
     };
 
-    // flags for indicating what chunks need to be saved / have been loaded
-    enum EffectSettingChunks
-    {
-        kMgefChunk_Edid     = 0x00000001,
-        kMgefChunk_Eddx     = 0x00000002,
-        kMgefChunk_Full     = 0x00000004,
-        kMgefChunk_Desc     = 0x00000008,
-        kMgefChunk_Icon     = 0x00000010,
-        kMgefChunk_Modl     = 0x00000020,
-        kMgefChunk_Data     = 0x00000040,
-        kMgefChunk_Datx     = 0x00000080, // [deprecated since v1 beta3], still recognized for compatibility
-        kMgefChunk_Esce     = 0x00000100,
-        kMgefChunk_Obme     = 0x00000200,
-        kMgefChunk_Ehnd     = 0x00000400,
-    };
-
-    // chunk structure for main effect setting data
-    struct EffectSettingDataChunk
-    {// size 40
-        MEMBER /*00*/ UInt32        mgefFlags;      // bitmask
-        MEMBER /*04*/ float         baseCost;
-        MEMBER /*08*/ UInt32        mgefParam;      // formid, extended enum, or neither, depending on vanilla flags
-        MEMBER /*0C*/ UInt32        school;         // extended enum
-        MEMBER /*10*/ UInt32        resistAV;       // extended enum
-        MEMBER /*14*/ UInt16        numCounters;
-        MEMBER /*16*/ UInt16        pad16;
-        MEMBER /*18*/ UInt32        light;          // formid
-        MEMBER /*1C*/ float         projSpeed;
-        MEMBER /*20*/ UInt32        effectShader;   // formid
-        MEMBER /*24*/ UInt32        enchantShader;  // formid
-        MEMBER /*28*/ UInt32        castingSound;   // formid
-        MEMBER /*2C*/ UInt32        boltSound;      // formid
-        MEMBER /*30*/ UInt32        hitSound;       // formid
-        MEMBER /*34*/ UInt32        areaSound;      // formid
-        MEMBER /*38*/ float         enchantFactor;
-        MEMBER /*3C*/ float         barterFactor;
-    };
-
-    // chunk structure for OBME data
-    struct EffectSettingObmeChunk
-    {// size 30
-        MEMBER /*00*/ UInt32        obmeRecordVersion;  // version
-        MEMBER /*04*/ UInt8         _mgefParamResType;  // [deprecated] Resolution Type, for mgefParam, redundant to mgefFlags
-        MEMBER /*05*/ UInt8         _mgefParamBResType; // [deprecated, must be 0] Resolution Type
-        MEMBER /*06*/ UInt16        reserved06;
-        MEMBER /*08*/ UInt32        effectHandler;      // effect handler code
-        MEMBER /*0C*/ UInt32        mgefObmeFlags;      // bitmask
-        MEMBER /*10*/ UInt32        _mgefParamB;        // [deprecated, must be 0]
-        MEMBER /*14*/ UInt32        reserved14[7];
-    };
-
     // cached vanilla effects  
     static EffectSetting*   defaultVFXEffect;
     static EffectSetting*   diseaseVFXEffect;
@@ -140,7 +89,6 @@ public:
     // additional members - this changes the size of EffectSetting!
     MEMBER /*++/++*/ MgefHandler*           effectHandler;      
     MEMBER /*++/++*/ UInt32                 mgefObmeFlags; // seperate field for overriden flags
-    MEMBER /*++/++*/ UInt32                 loadFlags; // bitmask of loaded chunk types, used for linking
 
     // virtual method overrides - TESFormIDListView
     _LOCAL /*010/034*/ virtual              ~EffectSetting();

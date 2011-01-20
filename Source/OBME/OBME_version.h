@@ -21,4 +21,5 @@ const int OBME_MGIT_VERSION     = 0x00;     // MagicItem save version
 #define OBME_VERSION(recordT)                MAKE_VERSION(OBME_MAJOR_VERSION,OBME_MINOR_VERSION,OBME_BETA_VERSION,recordT)
 
 #define VERSION_VANILLA_OBLIVION        0x00000000  // indicates an object initialized by vanilla code
-#define VERSION_OBME_LASTUNVERSIONED    MAKE_VERSION(1,0,3,0xFF)  // last version of OBME to use old/no versioning scheme (v1.beta3)
+#define VERSION_OBME_FIRSTVERSIONED     MAKE_VERSION(1,0,4,0)  // first version of OBME to use embedded versioning (v1.beta4)
+#define VERSION_OBME_LASTUNVERSIONED    MAKE_VERSION(1,0,3,0)  // last version of OBME to use old/no versioning scheme (v1.beta3)

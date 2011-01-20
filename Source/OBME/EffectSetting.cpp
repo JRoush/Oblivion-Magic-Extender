@@ -75,7 +75,16 @@ struct EffectSettingDatxChunk   // DATX chunk, deprecated as of v1.beta4 but kep
 };
 
 // memory patch & hook addresses
-memaddr EffectSetting_Vtbl                      (0x00A32B14,0x0095C914);
+#ifdef OBLIVION // bitmask of virtual methods that need to be manually copied from OBME vtbl to vanilla vtbl
+    const UInt32 TESForm_PatchMethods[2] = { 0x28000290, 0x00006000 };
+#else
+    const UInt32 TESForm_PatchMethods[3] = { 0x50052000, 0x0000C000, 0x000032E8 };
+#endif
+memaddr TESForm_Vtbl                            (0x00A32B14,0x0095C914);    // EffectSetting::TESFormIDListView::{vtbl}
+memaddr TESModel_Vtbl                           (0x00A32AF0,0x0095C8C4);    // EffectSetting::TESModel::{vtbl}
+memaddr TESFullName_Vtbl                        (0x00A32AC4,0x0095C850);    // EffectSetting::TESFullName::{vtbl}
+memaddr TESDescription_Vtbl                     (0x00A32AD8,0x0095C888);    // EffectSetting::TESDecription::{vtbl}
+memaddr TESIcon_Vtbl                            (0x00A32AA8,0x0095C804);    // EffectSetting::TESIcon::{vtbl}
 memaddr EffectSetting_Create                    (0x004165E0,0x0);
 memaddr EffectSettingCollection_Add_Hook        (0x00417220,0x0056AC40);
 memaddr EffectSettingCollection_AddLast_Hook    (0x00418DAA,0x0056C85A);
@@ -1655,31 +1664,32 @@ void EffectSetting::SetHandler(MgefHandler* handler)
 EffectSetting::EffectSetting()
 {    
     _VMESSAGE("Constructing Mgef <%p>",this);    
-    if (static bool needsVtblOverride = true)
+
+    if (static bool runonce = true)
     {
-        needsVtblOverride = false;
-        _MESSAGE("Patching Game/CS EffectSetting vtbl ...");
-        // runs first time an OBME::EffectSetting is constructed, & patches game vtbl
-        memaddr obmeVtbl((UInt32)memaddr::GetObjectVtbl(this));
-        memaddr oDtor(0x10,0x34);       EffectSetting_Vtbl.SetVtblEntry(oDtor,obmeVtbl.GetVtblEntry(oDtor)); // ~EffectSetting();
-        memaddr oLoadForm(0x1C,0x40);   EffectSetting_Vtbl.SetVtblEntry(oLoadForm,obmeVtbl.GetVtblEntry(oLoadForm)); // LoadForm
-        memaddr oSaveForm(0x24,0x48);   EffectSetting_Vtbl.SetVtblEntry(oSaveForm,obmeVtbl.GetVtblEntry(oSaveForm)); // SaveForm
-        memaddr oLinkForm(0x6C,0x70);   EffectSetting_Vtbl.SetVtblEntry(oLinkForm,obmeVtbl.GetVtblEntry(oLinkForm)); // LinkForm
-        memaddr oDebugDesc(0x74,0x78);  EffectSetting_Vtbl.SetVtblEntry(oDebugDesc,obmeVtbl.GetVtblEntry(oDebugDesc)); // GetDebugDescription
-        memaddr oCopyFrom(0xB4,0xB8);   EffectSetting_Vtbl.SetVtblEntry(oCopyFrom,obmeVtbl.GetVtblEntry(oCopyFrom)); // CopyFrom
-        memaddr oCompareTo(0xB8,0xBC);  EffectSetting_Vtbl.SetVtblEntry(oCompareTo,obmeVtbl.GetVtblEntry(oCompareTo)); // CompareTo
-        #ifndef OBLIVION
-        EffectSetting_Vtbl.SetVtblEntry(0x10C,obmeVtbl.GetVtblEntry(0x10C)); // DialogMessageCallback
-        EffectSetting_Vtbl.SetVtblEntry(0x114,obmeVtbl.GetVtblEntry(0x114)); // SetInDialog
-        EffectSetting_Vtbl.SetVtblEntry(0x118,obmeVtbl.GetVtblEntry(0x118)); // GetFromDialog
-        EffectSetting_Vtbl.SetVtblEntry(0x11C,obmeVtbl.GetVtblEntry(0x11C)); // CleanupDialog
-        EffectSetting_Vtbl.SetVtblEntry(0x124,obmeVtbl.GetVtblEntry(0x124)); // SetupFormListColumns
-        EffectSetting_Vtbl.SetVtblEntry(0x130,obmeVtbl.GetVtblEntry(0x130)); // GetFormListDispInfo
-        EffectSetting_Vtbl.SetVtblEntry(0x134,obmeVtbl.GetVtblEntry(0x134)); // CompareInFormList
-        #endif  
+        // patch up Game/CS EffectSetting vtbl with methods overwritten by OBME  
+        memaddr thisvtbl = (UInt32)memaddr::GetObjectVtbl(this);
+        _MESSAGE("Patching Game/CS TESFormIDListView vtbl from <%p>",thisvtbl);
+        gLog.Indent();
+        for (int i = 0; i < sizeof(TESForm_PatchMethods)*0x8; i++)
+        {
+            if ((TESForm_PatchMethods[i/0x20] >> (i%0x20)) & 1)
+            {
+                TESForm_Vtbl.SetVtblEntry(i*4,thisvtbl.GetVtblEntry(i*4));
+                _VMESSAGE("Patched Offset 0x%04X",i*4);
+            }
+        }
+        gLog.Outdent();
+        runonce  =  false;
     }
-    // replace compiler-generated vtbl with existing game vtbl
-    EffectSetting_Vtbl.SetObjectVtbl(this);
+
+    // replace compiler-generated vtbls with existing game/CS vtbls
+    TESForm_Vtbl.SetObjectVtbl(this);    
+    TESModel_Vtbl.SetObjectVtbl(dynamic_cast<TESModel*>(this));
+    TESFullName_Vtbl.SetObjectVtbl(dynamic_cast<TESFullName*>(this));
+    TESDescription_Vtbl.SetObjectVtbl(dynamic_cast<TESDescription*>(this));
+    TESIcon_Vtbl.SetObjectVtbl(dynamic_cast<TESIcon*>(this));
+
     // game constructor uses some odd initialization values
     // NOTE: be *very* careful about changing default initializations
     // the game occassionally uses a default-constructed EffectSetting, and the default values are

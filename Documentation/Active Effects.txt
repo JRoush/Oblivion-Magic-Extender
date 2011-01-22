@@ -34,6 +34,8 @@ New Mechanics:
 -	When an active effect is replaced by a newer, equivalent, effect then some fraction of lost magicka is "reclaimed" & applied to new effect.
 -   Allow a new 'suspendeded' states for AEs.  When in these states the actual effects of the AE are not applied, but it's timer continues to increment.  
     Useful for 'intervention' type reversible dispels and strongest-effect-only stacking behavior.  
+    NOTE - The object (script or stacking group, etc.) that suspends an AE may mark it as "owned".  Such active effects should only be unsuspended by 
+    the owner.  This prevents e.g. two stacking groups "fighting" over the state of an active effect that is in both.
     
 Changes to Source objects while Active Effect exists:
 =====================================================
@@ -127,20 +129,23 @@ Indiv. Active Effects:
         of the three. This needs testing, and fixing if possible.
     -   Fix script function GetScriptEffectIndex, GetNthEffectItemCode, GetMagicEffectCode that takes ref as param, AddEffectItem
     -   Change script runner to run *all* blocks in magic effect scripts?
--   Summon:    
-    -   FlagA is set if the handler should attempt to 'scale' the summoned object proportional to the effect magnitude
-	-	ParamA: formID of summoned object
-    -   SummonReference(RSH):
-        -   by default, place the summoned object wherever the caster is aiming at that instant, or near caster if aim is bad
-        -	SummonActor:
-            -	scale level.  use leveled lists in inventory and spell list to scale weapons, spells, and bonuses
-            -	limit based on creature type / NPC race? class?
-            -   FlagD: configure AI to ally with caster        
-	-	SummonBoundObject:
-		-	scale damage,durability,quality,quantity, and potency of enchantment / effects list
-		-	add directly to inventory, automatically equip, and don't allow caster to remove
-		-	bound weapon enchantments have no cost
-    -   Others?
++   AssociatedItemEffect:    
+	+	References a base form, e.g. for summoning
+    +	SummonCreatureEffect:
+        +   Creates a temporary ref to the summoned actor, sets it's AI package to allied with target, & places in vicinity
+        +	(RSH): if assoc item is a leveled list, scale 'level' with magnitude.
+        +	(RSH): (possibly) scale level with magnitude.  use leveled lists in inventory and spell list to scale weapons, spells, and bonuses
+        +   (RSH): make allying with target optional    
+        +   SummonCreatureTargeted(RSH):
+            +   summons a creature for the *caster*, but places in vicinity of target.  
+            +   (possibly) have AI allied w/ caster, or selectively hostile to target, both, neither, etc.
+	+	BoundItemEffect:
+        +   Adds a copy of the associated weapon or armor to the target's inventory, forces them to equip it, and doesn't allow them to remove it
+        +	(RSH): if assoc item is a leveled list, scale 'level' with magnitude.
+		+   (RSH): make force equip / no unequip optional - needs research
+    +   SummonInventoryItem(RSH):
+        +   Same as BoundItem, but for arbitrary inventory items.
+        +   Doesn't automatically activate -  Hinges on possibility of tracking a particular inventory ref, and/or preventing the target from dropping the item
 -   Banish(RSH):
     -   if target is a summon, attempt to dispel the summon effect from the caster
         if target is an ordinary actor, attempt to dispel to all of the their summon effects

@@ -155,8 +155,10 @@ bool MgefHandler::CompareTo(const MgefHandler& compareTo)
     // default handler has no other fields to compare
     return false;
 }
-// child Dialog for CS editing
 #ifndef OBLIVION
+// reference management in CS
+void MgefHandler::RemoveFormReference(TESForm& form) {} // default handler has no form references
+// child Dialog in CS
 INT MgefHandler::DialogTemplateID() { return 0; }   // default handler has no dialog
 void MgefHandler::InitializeDialog(HWND dialog) {}
 bool MgefHandler::DialogMessageCallback(HWND dialog, UINT uMsg, WPARAM wParam, LPARAM lParam, LRESULT& result) { return false; }

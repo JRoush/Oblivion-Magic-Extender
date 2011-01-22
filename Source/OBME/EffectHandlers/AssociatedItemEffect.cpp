@@ -30,6 +30,13 @@ void AssociatedItemMgefHandler::CopyFrom(const MgefHandler& copyFrom)
 {
     const AssociatedItemMgefHandler* src = dynamic_cast<const AssociatedItemMgefHandler*>(&copyFrom);
     if (!src) return; // wrong polymorphic type
+
+    // copy mgefParam, manage references
+    #ifndef OBLIVION
+    if (TESForm* form = TESForm::LookupByFormID(parentEffect.mgefParam)) form->RemoveCrossReference(&parentEffect);
+    if (TESForm* form = TESForm::LookupByFormID(src->parentEffect.mgefParam)) form->AddCrossReference(&parentEffect);
+    #endif
+    parentEffect.mgefParam = src->parentEffect.mgefParam;
 }
 bool AssociatedItemMgefHandler::CompareTo(const MgefHandler& compareTo)
 {   
@@ -47,8 +54,14 @@ bool AssociatedItemMgefHandler::CompareTo(const MgefHandler& compareTo)
     // handlers are identical
     return BoolEx(kCompareSuccess);
 }
-// child Dialog for CS editing
 #ifndef OBLIVION
+// reference management in CS
+void AssociatedItemMgefHandler::RemoveFormReference(TESForm& form) 
+{
+    // clear mgefParam if it matches formID of ref
+    if (parentEffect.mgefParam == form.formID) parentEffect.mgefParam = 0;
+}
+// child Dialog in CS
 INT AssociatedItemMgefHandler::DialogTemplateID() { return IDD_SUMN; }
 void AssociatedItemMgefHandler::SetInDialog(HWND dialog)
 {

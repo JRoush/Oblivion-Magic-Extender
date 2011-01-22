@@ -22,13 +22,13 @@ public:
     virtual bool                LoadHandlerChunk(TESFile& file, UInt32 RecordVersion);
     virtual void                SaveHandlerChunk();
     virtual void                LinkHandler();
-
     // copy/compare
     virtual void                CopyFrom(const MgefHandler& copyFrom);
     virtual bool                CompareTo(const MgefHandler& compareTo);
-
-    // child Dialog for CS editing
     #ifndef OBLIVION
+    // reference management in CS
+    virtual void                RemoveFormReference(TESForm& form);
+    // child Dialog in CS
     virtual INT                 DialogTemplateID();
     virtual void                InitializeDialog(HWND dialog);
     virtual bool                DialogMessageCallback(HWND dialog, UINT uMsg, WPARAM wParam, LPARAM lParam, LRESULT& result);

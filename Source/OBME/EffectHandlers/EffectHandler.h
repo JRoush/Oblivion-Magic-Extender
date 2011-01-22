@@ -22,6 +22,7 @@
 
 // argument classes
 class   TESFile;
+class   TESForm;
 
 namespace OBME {
 
@@ -109,8 +110,10 @@ public:
     virtual void                CopyFrom(const MgefHandler& copyFrom);  // must incr/decr CrossRefs for mgefParam if necessary
     virtual bool                CompareTo(const MgefHandler& compareTo); // returns false is equivalent
 
-    // child Dialog for CS editing
     #ifndef OBLIVION
+    // reference management in CS
+    virtual void                RemoveFormReference(TESForm& form); // removes ref to given form.  must handle mgefParam if necessary
+    // child Dialog in CS
     virtual INT                 DialogTemplateID(); // ID of dialog template resource 
     virtual void                InitializeDialog(HWND dialog);
     virtual bool                DialogMessageCallback(HWND dialog, UINT uMsg, WPARAM wParam, LPARAM lParam, LRESULT& result);

@@ -72,8 +72,13 @@ bool ValueModifierMgefHandler::CompareTo(const MgefHandler& compareTo)
     // handlers are identical
     return BoolEx(kCompareSuccess);
 }
-// child Dialog for CS editing
 #ifndef OBLIVION
+// reference management in CS
+void ValueModifierMgefHandler::RemoveFormReference(TESForm& form) 
+{
+    // TODO - clear mgefParam if it is an AV token
+}
+// child Dialog in CS
 INT ValueModifierMgefHandler::DialogTemplateID() { return IDD_MDAV; }
 void ValueModifierMgefHandler::InitializeDialog(HWND dialog)
 {

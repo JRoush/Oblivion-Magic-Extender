@@ -101,55 +101,79 @@ Magic School(RSH):
 Builtin schools are nothing but codes, they use hardcoded arrays for their other values
 -   Code (same as formID for dynamic schools)
 -   Actor Value - multiplied by (parent skill base + parent skill * parent skill mult) to get effective skill
--   Name (explicit, taken from associated AV, or taken from hardcoded array for vanilla schools)  
+-   Name (explicit, default taken from associated AV or hardcoded array for vanilla schools)  
 -   Casting Failure Sound (taken from hardcoded array for vanilla schools)  
 -   Enchant Hit Sound (taken from hardcoded array for vanilla schools)
 -   Enchant Draw Sound (taken from hardcoded array for vanilla schools)
 -   Parent School - used to describe school hierarchies
 -   Parent skill base
 -   Parent skill mult
--   Form base values; use Misc item form type?
 
 Shielding(RSH):
 ===============
 Builtin shieldings are nothing but codes, their values are hardcoded into the engine
-The Process methods responsible for tracking an actor's current shieldings treate the codes as a bitmask;
-these methods will have to be overriden to handle shield codes that are complete formIDs.  This includes making
-sure that the cached shieldings are not saved in the savegame, since they would have to be resolved on loading.
--   Shielding code (same as formID for dynamic shieldings)
--   Form base values; use Misc item form type?
+The Process methods responsible for tracking an actor's current shieldings treate the codes as a bitmask.
+Disable the vanilla behavior & replace with a few default Magic Groups (see below)
 
-Stacking Limit(RSH):
-====================
-Default stacking {type=count,scope=perItem,limit=1,action=remove,sorting=timePassed}
-Builtin stacking (for summon effects) {type=count,scope=cumulative,limit=gmst,action=remove,sorting=timePassed}
--   Stacking code (same as formID for dynamic stackings)
--   Stacking Type - defines quantity for which total is limited on a single target
-    -   None: active effects are independent of each other
-    -   Effect Count: number of active effects
-    -   Total Magnitude: (absolute value) of magnitude from all active effects 
-    -   Total Magicka: total equivalent magicka from all active effects
--   Stacking scope 
-    -   per item - computed independently for each mgef/magic item that uses limit
-    -   cumulative - all mgefs/magic items that use this limit contribute together
--   Stacking Limit Type
-    -   Global variable: contains limit
-    -   Actor Value: contains limit
-    -   Plain number
--   Stacking Limit - formid of global, avCode of actor value, or limit value for plain numbers
--   Action - actions taken to enforce limit
-    -   Prevent Casting - disable use of magic item that would violate limit, display warning on attempt
-    -   Remove - remove active effects until limit is enforced
-        -   Reclaim Factor - multiplies/replaces default reclaiming factor for this limit        
-    -   Disable - remove active effects until limit is enforced, but do not destroy them.
-        Removed effects are flagged as 'disabled'.  This state is reversed when any non-dormant effect expires and frees up enough tolerance below the limit.
-    -   Limit Callback - enforces limit after effect is applied
--   Sorting - how to rank active effects that share a limit
-    -   time passed (greatest -> least)
-    -   magicka cost (least -> greatest)
-    -   absolute magnitude (lowest -> highest)
-    -   time remaining (lowest -> highest)
--   Form base values; use Misc item form type?
+Magic Group (RSH):
+==================
+Active Effect processing for each target is placed inside an outer loop.  In the inner loop, AEs are processed as before, except that when one is activated 
+or deactivated, any groups it is a member of is flagged for update.  In the outer loop, all flagged groups are processed.  The outer loop continues until
+no groups are flagged for update.  Groups are also processed when a magic item is prepared for casting.
+Group processing only occurs if the Action matches the Event (activate, deactivate, prepare)
+The group Action is performed if it's Condition and Expression are true, and the inverse Action is performed if the Condition is true and the Expression is false.
+-   Expression = Operator(Value[,Operand])
+-   Value = "Outer" Aggregate Func over all base form members { "Inner" Aggregate Func over all active objects for a specified base form { Quantity
+-   Name: used for output in game
+-   Conditions
+    -   Always
+    -   Value changes
+    -   Value doesn't change
+    -   Value increases
+    -   Value decreases
+-   Aggregate Functions:
+    -   Sum
+    -   Max
+    -   Min
+    -   Process for each distinct base form individually (outer aggregate only)
+-   Quantities
+    -   GWeight
+    -   Magnitude
+    -   Magicka
+-   Operators
+    -   <
+    -   >
+    -   <=
+    -   >=
+    -   ==
+    -   !=
+-   Operands
+    -   literal value
+    -   global variable 
+    -   gmst
+    -   actor value on target
+-   Actions (= means invertible) [event(s)] {arguments}:
+    -   Remove [activate,deactivate] {reclaim factor, sort ordering}
+    =   Suspend [activate,deactivate] {sort ordering}
+    -   Use VFX [activate] {source mgef}
+    -   Prevent casting [prepare]
+    =   Apply magic item [activate,deactivate] {magic item}
+    =   script callback [activate,deactivate,prepare] {script}
+-   Sort orderings (implictly reversable)
+    -   Magicka
+    -   Time elapsed
+    -   Time remaining
+    -   Magnitude
+    -   GWeight
+-   Example Groups:
+    -   Physical Damage Shielding: {Condition = no change, Aggregate = Sum,Sum, Quantity = GWeight, Operator = >, Operand = literal(0.0), Action = Use VFX(SHLD) }
+        Shield "providers" have gweight 1, shield "consumers" have gweight 0
+    -   Spell 'single instance': {Condition = changes, Aggregate = Indiv,Sum, Quantity = GWeight, Operator = >, Operand = literal(1.0), Action = Remove(1.0,most time elapsed)}
+        All spells have gweight 1
+    -   Single summoned creature: {Condition = Always, Aggregate = Sum,Sum, Quantity = GWeight, Operator = >, Operand = gmst(iMaxPlayerSummonedCreatures), Action = Remove(1.0,most time elapsed)}
+        All summon creature effects have gweight 1
+    -   Single bound armor per slot: {Condition = Always, Aggregate = Sum,Sum, Quantity = GWeight, Operator = >, Operand = literal(1.0), Action = Prevent Casting}
+        One group per equippable slot, each 'bound item' effect gets GWeight 1 in the group for it's slot.
     
 File Format Notes:
 ==================

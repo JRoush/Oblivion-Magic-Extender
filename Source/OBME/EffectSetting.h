@@ -99,6 +99,9 @@ public:
     _LOCAL /*0B4/0B8*/ virtual void         CopyFrom(TESForm& form); 
     _LOCAL /*0B8/0BC*/ virtual bool         CompareTo(TESForm& compareTo);
     #ifndef OBLIVION
+    _LOCAL /*---/0F4*/ virtual void         RemoveFormReference(TESForm& form);
+    _LOCAL /*---/0F8*/ virtual bool         FormRefRevisionsMatch(BSSimpleList<TESForm*>* checkinList);
+    _LOCAL /*---/0FC*/ virtual void         GetRevisionUnmatchedFormRefs(BSSimpleList<TESForm*>* checkinList, BSStringT& output);
     _LOCAL /*---/10C*/ virtual bool         DialogMessageCallback(HWND dialog, UINT uMsg, WPARAM wParam, LPARAM lParam, LRESULT& result); 
     _LOCAL /*---/114*/ virtual void         SetInDialog(HWND dialog);
     _LOCAL /*---/118*/ virtual void         GetFromDialog(HWND dialog);
@@ -134,6 +137,7 @@ public:
     _LOCAL static UInt32    GetUnusedStaticCode(); // checks table & returns an unused static mgef code
     _LOCAL static bool      ResolveModMgefCode(UInt32& mgefCode, TESFile& file); // does form-id like resolution on code from mod file          
     _LOCAL static bool      ResolveSavedMgefCode(UInt32& mgefCode); //  does form-id like resolution on code from savegame
+    _LOCAL void             ReplaceMgefCodeRef(UInt32 oldMgefCode, UInt32 newMgefCode); // replace all uses of old code with new code
 
     // methods: effect handler
     _LOCAL MgefHandler&             GetHandler();

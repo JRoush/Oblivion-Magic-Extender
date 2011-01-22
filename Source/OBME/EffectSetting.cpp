@@ -78,7 +78,7 @@ struct EffectSettingDatxChunk   // DATX chunk, deprecated as of v1.beta4 but kep
 #ifdef OBLIVION // bitmask of virtual methods that need to be manually copied from OBME vtbl to vanilla vtbl
     const UInt32 TESForm_PatchMethods[2] = { 0x28000290, 0x00006000 };
 #else
-    const UInt32 TESForm_PatchMethods[3] = { 0x50052000, 0x0000C000, 0x000032E8 };
+    const UInt32 TESForm_PatchMethods[3] = { 0x50052000, 0xE000C000, 0x000032E8 };
 #endif
 memaddr TESForm_Vtbl                            (0x00A32B14,0x0095C914);    // EffectSetting::TESFormIDListView::{vtbl}
 memaddr TESModel_Vtbl                           (0x00A32AF0,0x0095C8C4);    // EffectSetting::TESModel::{vtbl}
@@ -467,9 +467,11 @@ void EffectSetting::LinkForm()
 {
     
     if (formFlags & kFormFlags_Linked) return;  // form already linked
-    _VMESSAGE("Linking %s", GetDebugDescEx().c_str()); 
+    _VMESSAGE("Linking %s", GetDebugDescEx().c_str());
 
-    // resolve form light, sound, shaders formids into pointers
+    // TODO - school, resistanceAV
+
+    // VFX, AFX
     // NOTE: because TESSound, TESEffectShader, and TESObjectLIGH are not yet defined in COEF, the
     // normal dynamic cast check on the form pointer is omitted.
     // If any of these formIDs refer to forms of the wrong type, all hell will break loose.
@@ -486,10 +488,19 @@ void EffectSetting::LinkForm()
     if (hitSound) ((TESForm*)hitSound)->AddCrossReference(this);
     if (effectShader) ((TESForm*)effectShader)->AddCrossReference(this);
     if (enchantShader) ((TESForm*)enchantShader)->AddCrossReference(this);
-    if (light) ((TESForm*)light)->AddCrossReference(this);
-    // TODO - school, resistanceAV
+    if (light) ((TESForm*)light)->AddCrossReference(this);    
+    #endif
+
+    // counter effects
+    #ifndef OBLIVION
+    for (int i = 0; i < numCounters; i++)
+    {
+        if (::EffectSetting* counter = EffectSetting::LookupByCode(counterArray[i])) {counter->AddCrossReference(this);}
+        else _WARNING("%s has unrecognized counter effect code '%4.4s' {%08X}",GetDebugDescEx().c_str(),&counterArray[i],counterArray[i]);
+    }
     #endif
     
+    // handler (includes mgefParam)
     GetHandler().LinkHandler(); // link handler object
 
     // set linked flag
@@ -513,44 +524,55 @@ void EffectSetting::CopyFrom(TESForm& copyFrom)
     }    
 
     // copy BaseFormComponents
-    TESForm::CopyGenericComponentsFrom(copyFrom);
+    TESForm::CopyAllComponentsFrom(copyFrom);
     
     // floating point members
     baseCost = mgef->baseCost;
     enchantFactor = mgef->enchantFactor;
     barterFactor = mgef->barterFactor;
     projSpeed = mgef->projSpeed;
-
     // resistAV - TODO - Add/Remove references from AV token
     SetResistAV(mgef->GetResistAV()); // standardize 'no resistance' code
-
-    // resistAV - TODO - Add/Remove references from school token
+    // school - TODO - Add/Remove references from school token
     school = mgef->school;
-
     // VFX, AFX
+    #ifndef OBLIVION
     if (light)  ((TESForm*)light)->RemoveCrossReference(this);
-    if (light = mgef->light)    ((TESForm*)light)->AddCrossReference(this);
+    if (mgef->light)    ((TESForm*)mgef->light)->AddCrossReference(this);
     if (effectShader)  ((TESForm*)effectShader)->RemoveCrossReference(this);
-    if (effectShader = mgef->effectShader)    ((TESForm*)effectShader)->AddCrossReference(this);
+    if (mgef->effectShader)    ((TESForm*)mgef->effectShader)->AddCrossReference(this);
     if (enchantShader)  ((TESForm*)enchantShader)->RemoveCrossReference(this);
-    if (enchantShader = mgef->enchantShader)    ((TESForm*)enchantShader)->AddCrossReference(this);
+    if (mgef->enchantShader)    ((TESForm*)mgef->enchantShader)->AddCrossReference(this);
     if (castingSound)  ((TESForm*)castingSound)->RemoveCrossReference(this);
-    if (castingSound = mgef->castingSound)    ((TESForm*)castingSound)->AddCrossReference(this);
+    if (mgef->castingSound)    ((TESForm*)mgef->castingSound)->AddCrossReference(this);
     if (boltSound)  ((TESForm*)boltSound)->RemoveCrossReference(this);
-    if (boltSound = mgef->boltSound)    ((TESForm*)boltSound)->AddCrossReference(this);
+    if (mgef->boltSound)    ((TESForm*)mgef->boltSound)->AddCrossReference(this);
     if (hitSound)  ((TESForm*)hitSound)->RemoveCrossReference(this);
-    if (hitSound = mgef->hitSound)    ((TESForm*)hitSound)->AddCrossReference(this);
+    if (mgef->hitSound)    ((TESForm*)mgef->hitSound)->AddCrossReference(this);
     if (areaSound)  ((TESForm*)areaSound)->RemoveCrossReference(this);
-    if (areaSound = mgef->areaSound)    ((TESForm*)areaSound)->AddCrossReference(this);
+    if (mgef->areaSound)    ((TESForm*)mgef->areaSound)->AddCrossReference(this);
+    #endif
+    light = mgef->light;
+    effectShader = mgef->effectShader;
+    enchantShader = mgef->enchantShader;
+    castingSound = mgef->castingSound;
+    boltSound = mgef->boltSound;
+    hitSound = mgef->hitSound;
+    areaSound = mgef->areaSound;
+    // flags
+    mgefFlags = mgef->mgefFlags;
+    mgefObmeFlags = mgef->mgefObmeFlags;
 
     // counter array
     if (counterArray)
     {
+        #ifndef OBLIVION
         // clear refs to counter effects
         for (int i = 0; i < numCounters; i++)
         {
             if (::EffectSetting* counter = EffectSetting::LookupByCode(counterArray[i])) {counter->RemoveCrossReference(this);}
         }
+        #endif
         // clear current counter array
         MemoryHeap::FormHeapFree(counterArray);
         counterArray = 0;
@@ -563,13 +585,11 @@ void EffectSetting::CopyFrom(TESForm& copyFrom)
         for (int i = 0; i < numCounters; i++)
         {
             counterArray[i] = mgef->counterArray[i];
+            #ifndef OBLIVION
             if (::EffectSetting* counter = EffectSetting::LookupByCode(counterArray[i])) {counter->AddCrossReference(this);}
+            #endif
         }
     }
-
-    // flags
-    mgefFlags = mgef->mgefFlags;
-    mgefObmeFlags = mgef->mgefObmeFlags;
 
     // handler & mgefParam
     MgefHandler* newHandler = MgefHandler::Create(mgef->GetHandler().HandlerCode(),*this);
@@ -601,13 +621,27 @@ void EffectSetting::CopyFrom(TESForm& copyFrom)
             #endif
             if (proceed)
             {
+                _DMESSAGE("Changing mgefCode for %s to '%4.4s' {%08X} ...",GetDebugDescEx().c_str(),&mgef->mgefCode,mgef->mgefCode);
                 // user confirms
+                #ifndef OBLIVION                
+                if (FormReferenceList* crossrefs = TESForm::GetCrossReferenceList(false))
+                {
+                    for (FormReferenceList::Node* node = &crossrefs->firstNode; node && node->data; node = node->next)
+                    {
+                        if (EffectSetting* ref = (EffectSetting*)dynamic_cast<::EffectSetting*>(node->data))  // MGEF
+                        {
+                            ref->ReplaceMgefCodeRef(mgefCode,mgef->mgefCode);
+                        }
+                        else if (EffectItemList* ref = dynamic_cast<EffectItemList*>(node->data)) // SPEL,ENCH,ALCH,INGR,SGST
+                        {
+                            // TODO - notify all EffectItemLists that use this code that it has changed  
+                        }                        
+                    }
+                }
+                #endif
                 EffectSettingCollection::collection.RemoveAt(mgefCode); // unregister current code
                 mgefCode = mgef->mgefCode; // copy code
                 if (IsMgefCodeValid(mgefCode)) EffectSettingCollection::collection.SetAt(mgefCode,this); // register under new code
-                #ifndef OBLIVION
-                // TODO - notify all EffectItemLists and EffectSettings that use this code that it has changed
-                #endif
             }
         }
     }
@@ -622,73 +656,128 @@ bool EffectSetting::CompareTo(TESForm& compareTo)
         kCompareSuccess         = 0,
         kCompareFail_General    = 1,
         kCompareFail_Polymorphic,
+        kCompareFail_BaseComponents,
+        kCompareFail_MgefCode,
+        kCompareFail_BaseCost,
+        kCompareFail_EnchantFactor,
+        kCompareFail_BarterFactor,
+        kCompareFail_ProjSpeed,
         kCompareFail_ResistAV,
-        kCompareFail_Counters,
-        kCompareFail_BaseMgef,
+        kCompareFail_School,
+        kCompareFail_Light,
+        kCompareFail_EffectShader,
+        kCompareFail_EnchantShader,
+        kCompareFail_CastingSound,
+        kCompareFail_BoltSound,
+        kCompareFail_HitSound,
+        kCompareFail_AreaSound,
+        kCompareFail_MgefFlags,
         kCompareFail_ObmeFlags,
+        kCompareFail_Counters,
         kCompareFail_Handler,
+        kCompareFail_MgefParam,
     };
 
     // convert form to mgef
     EffectSetting* mgef = (EffectSetting*)dynamic_cast<::EffectSetting*>(&compareTo);
     if (!mgef)
     {
-        BSStringT desc;
-        compareTo.GetDebugDescription(desc);    
+        BSStringT desc;  compareTo.GetDebugDescription(desc);    
         _WARNING("Attempted compare to %s",desc.c_str());
         return BoolEx(kCompareFail_Polymorphic);
     }    
 
-    // compare resistances
-    if (GetResistAV() != mgef->GetResistAV()) return BoolEx(kCompareFail_ResistAV); // resistances don't match
+    // compare BaseFormComponents
+    if (TESForm::CompareAllComponentsTo(compareTo)) return BoolEx(kCompareFail_BaseComponents);
 
-    // compare counter effects
-    if (numCounters != mgef->numCounters) return BoolEx(kCompareFail_Counters); // counter effect count doesn't match
-    if (numCounters)
-    {
-        bool* counterFound = new bool[numCounters];
-        for (int j = 0; j < numCounters; j++) counterFound[j] = false;
-        for (int i = 0; i < numCounters; i++)
-        {
-            bool found = false;
-            for (int j = 0; j < numCounters; j++)
-            {
-                if (counterArray[i] == mgef->counterArray[j] && !counterFound[j]) // check if effect matches an unmatched counter
-                {
-                    found = true; // note that a counter was found
-                    counterFound[j] = true; // mark that this counter effect has been matched
-                    break; // move to next effect
-                }
-            }
-            if (!found)  return BoolEx(kCompareFail_Counters); // unmatched counter effect
-        }
-    }
-   
-    // cache resistance -  sidestep issues with different 'invalid' codes
-    UInt32 _resistAV = resistAV; 
-    resistAV = mgef->resistAV;
-    // cache counter effects - sidestep differences in order
-    UInt16 _numCounters = numCounters;
-    UInt32* _counterArray = counterArray;
-    numCounters = mgef->numCounters;
-    counterArray = mgef->counterArray;
-    // call base compare method
-    bool noMatch = ::EffectSetting::CompareTo(compareTo);
-    // restore cached fields
-    resistAV = _resistAV;
-    numCounters = _numCounters; 
-    counterArray = _counterArray;
-    if (noMatch) return BoolEx(kCompareFail_BaseMgef); // other base fields did not match    
+    // compare mgefCodes
+    if (mgefCode != mgef->mgefCode) return BoolEx(kCompareFail_MgefCode);
 
-    // compare flags
+    // floating point members
+    if (baseCost != mgef->baseCost) return BoolEx(kCompareFail_BaseCost);
+    if (enchantFactor != mgef->enchantFactor) return BoolEx(kCompareFail_EnchantFactor);
+    if (barterFactor != mgef->barterFactor) return BoolEx(kCompareFail_BarterFactor);
+    if (projSpeed != mgef->projSpeed) return BoolEx(kCompareFail_ProjSpeed);
+    // resistances
+    if (GetResistAV() != mgef->GetResistAV()) return BoolEx(kCompareFail_ResistAV);
+    // school
+    if (school != mgef->school) return BoolEx(kCompareFail_School);
+    // VFX & AFX
+    if (light != mgef->light) return BoolEx(kCompareFail_Light);
+    if (effectShader != mgef->effectShader) return BoolEx(kCompareFail_EffectShader);
+    if (enchantShader != mgef->enchantShader) return BoolEx(kCompareFail_EnchantShader);
+    if (castingSound != mgef->castingSound) return BoolEx(kCompareFail_CastingSound);
+    if (boltSound != mgef->boltSound) return BoolEx(kCompareFail_BoltSound);
+    if (hitSound != mgef->hitSound) return BoolEx(kCompareFail_HitSound);
+    if (areaSound != mgef->areaSound) return BoolEx(kCompareFail_AreaSound);
+    // flags
+    if (mgefFlags != mgef->mgefFlags) return BoolEx(kCompareFail_MgefFlags);
     if (mgefObmeFlags != mgef->mgefObmeFlags) return BoolEx(kCompareFail_ObmeFlags);
 
-    // compare handler
+    // counter effects
+    if (numCounters != mgef->numCounters) return BoolEx(kCompareFail_Counters); // counter effect count doesn't match
+    for (int i = 0; i < numCounters; i++)
+    {
+        bool found = false;
+        for (int j = 0; j < numCounters; j++)
+        {
+            if (counterArray[i] == mgef->counterArray[j]) { found = true; break; }
+        }
+        if (!found)  return BoolEx(kCompareFail_Counters); // unmatched counter effect
+    }
+   
+    // handler & mgefParam
     if (GetHandler().CompareTo(mgef->GetHandler())) return BoolEx(kCompareFail_Handler);
+    if (mgefParam != mgef->mgefParam) return BoolEx(kCompareFail_MgefParam);
 
     return BoolEx(kCompareSuccess);
 }
 #ifndef OBLIVION
+// Reference management
+void EffectSetting::RemoveFormReference(TESForm& form)
+{
+    _DMESSAGE("Removing form %08X from %s",form.formID,GetDebugDescEx().c_str());
+
+    // call base method to handle vanilla references (TODO - possible rewrite?)
+    UInt32 _mgefParam = mgefParam;
+    mgefParam = 0;
+    ::EffectSetting::RemoveFormReference(form);
+    mgefParam = _mgefParam;
+
+    // TODO - school, resistAV
+
+    // counter effects
+    if (::EffectSetting* ref = dynamic_cast<::EffectSetting*>(&form))
+    {
+        // remove refs by mgefcode & compact list
+        int insPos = 0;
+        for (int i = 0; i < numCounters; i++) 
+        { 
+            UInt32 code = counterArray[i];
+            counterArray[i] = 0;
+            if (code != ref->mgefCode) { counterArray[insPos] = code; insPos++; }        
+        }
+        numCounters = insPos;
+        // deallocate list only if it is now empty - a list that is too big does no harm
+        if (numCounters == 0 && counterArray) { MemoryHeap::FormHeapFree(counterArray); counterArray = 0;}
+    }
+
+    // handler + mgefParam
+    GetHandler().RemoveFormReference(form);
+}
+bool EffectSetting::FormRefRevisionsMatch(BSSimpleList<TESForm*>* checkinList)
+{
+    // TODO - rewrite to replace handling of mgefParam & new members
+    // This method is only used for revision control, though, which few in any modders use
+    return ::EffectSetting::FormRefRevisionsMatch(checkinList);
+}
+void EffectSetting::GetRevisionUnmatchedFormRefs(BSSimpleList<TESForm*>* checkinList, BSStringT& output)
+{
+    // TODO - rewrite to replace handling of mgefParam & new members
+    // This method is only used for revision control, though, which few in any modders use
+    ::EffectSetting::GetRevisionUnmatchedFormRefs(checkinList,output);
+}
+// Dialog management
 static const UInt32 kTabCount = 5;
 static const UInt32 kTabTemplateID[kTabCount] = {IDD_MGEF_GENERAL,IDD_MGEF_DYNAMICS,IDD_MGEF_GROUPS,IDD_MGEF_FX,IDD_MGEF_HANDLER};
 static const char* kTabLabels[kTabCount] = {"General","Dynamics","Groups","FX","Handler"};
@@ -797,6 +886,9 @@ void EffectSetting::InitializeDialog(HWND dialog)
 
     // GENERAL
     {
+        // mgef code
+        ctl = GetDlgItem(dialog,IDC_MGEF_MGEFCODE);
+        Edit_LimitText(ctl,8);  // no more than 8 characters in mgefcode textbox
         // school
         ctl = GetDlgItem(dialog,IDC_MGEF_SCHOOL);
         TESComboBox::Clear(ctl);
@@ -1204,6 +1296,7 @@ void EffectSetting::GetFromDialog(HWND dialog)
     // FLAGS
     for (int i = 0; i < 0x40; i++) {if (GetDlgItem(dialog,IDC_MGEF_FLAGEXBASE + i)) { SetFlag(i,IsDlgButtonChecked(dialog,IDC_MGEF_FLAGEXBASE + i)); }}
 
+    _VMESSAGE("Gotten %s from dialog, comparison = %02i",GetDebugDescEx().c_str(),CompareTo(*TESDialog::GetFormEditParam(dialog)));
 }
 void EffectSetting::CleanupDialog(HWND dialog)
 {
@@ -1655,6 +1748,15 @@ UInt32 EffectSetting::GetUnusedStaticCode()
         rawcode = 1;
     }
     return kMgefCode_None;
+}
+void EffectSetting::ReplaceMgefCodeRef(UInt32 oldMgefCode, UInt32 newMgefCode)
+{
+    _DMESSAGE("%s : Replacing '%4.4s'{%08X} -> '%4.4s'{%08X}",GetDebugDescEx().c_str(),&oldMgefCode,oldMgefCode,&newMgefCode,newMgefCode);
+    // counter effects
+    for (int i = 0; i < numCounters; i++)
+    {
+        if (counterArray[i] == oldMgefCode) counterArray[i] = newMgefCode;
+    }
 }
 // effect handler
 MgefHandler& EffectSetting::GetHandler()

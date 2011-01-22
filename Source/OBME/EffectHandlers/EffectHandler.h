@@ -80,9 +80,6 @@ public:
     virtual UInt32              HandlerCode() const = 0;
     virtual const char*         HandlerName() const; 
 
-    // conversion
-    static UInt32   GetDefaultHandlerCode(UInt32 mgefCode); // returns vanilla handler for vanilla effect codes, ACTV for new effects
-
     // handler enumeration
     static bool     GetNextHandler(UInt32& ehCode, const char*& ehName); // pass ehCode == 0 to get first handler
 
@@ -106,10 +103,10 @@ public:
     // serialization
     virtual bool                LoadHandlerChunk(TESFile& file, UInt32 RecordVersion);
     virtual void                SaveHandlerChunk();
-    virtual void                LinkHandler();
+    virtual void                LinkHandler(); // must link mgefParam if necessary
 
     // copy/compare
-    virtual void                CopyFrom(const MgefHandler& copyFrom);
+    virtual void                CopyFrom(const MgefHandler& copyFrom);  // must incr/decr CrossRefs for mgefParam if necessary
     virtual bool                CompareTo(const MgefHandler& compareTo); // returns false is equivalent
 
     // child Dialog for CS editing
@@ -117,8 +114,8 @@ public:
     virtual INT                 DialogTemplateID(); // ID of dialog template resource 
     virtual void                InitializeDialog(HWND dialog);
     virtual bool                DialogMessageCallback(HWND dialog, UINT uMsg, WPARAM wParam, LPARAM lParam, LRESULT& result);
-    virtual void                SetInDialog(HWND dialog);
-    virtual void                GetFromDialog(HWND dialog);
+    virtual void                SetInDialog(HWND dialog);   // must set mgefParam and handler-specific mgefFlags if necessary
+    virtual void                GetFromDialog(HWND dialog);   // must get mgefParam and handler-specific mgefFlags if necessary
     virtual void                CleanupDialog(HWND dialog);
     #endif
 

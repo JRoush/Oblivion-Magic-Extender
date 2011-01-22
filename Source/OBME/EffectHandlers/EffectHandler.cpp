@@ -3,6 +3,9 @@
 #include "OBME/EffectSetting.h"
 #include "OBME/EffectHandlers/EffectHandler.h"
 #include "OBME/EffectHandlers/ValueModifierEffect.h"
+#include "OBME/EffectHandlers/AssociatedItemEffect.h"
+#include "OBME/EffectHandlers/SummonCreatureEffect.h"
+#include "OBME/EffectHandlers/BoundItemEffect.h"
 
 #include <map>
 
@@ -48,7 +51,6 @@ public:
         insert<GenericMgefHandler<EffectHandler::kSEFF>,GenericEfitHandler<EffectHandler::kSEFF>,ActiveEffect>(EffectHandler::kSEFF,"Scripted");
         insert<GenericMgefHandler<EffectHandler::kSUDG>,GenericEfitHandler<EffectHandler::kSUDG>,ActiveEffect>(EffectHandler::kSUDG,"Sun Damage");
         insert<GenericMgefHandler<EffectHandler::kDEMO>,GenericEfitHandler<EffectHandler::kDEMO>,ActiveEffect>(EffectHandler::kDEMO,"Demoralize");
-        insert<GenericMgefHandler<EffectHandler::kCMND>,GenericEfitHandler<EffectHandler::kCMND>,ActiveEffect>(EffectHandler::kCMND,"Command");
         insert<GenericMgefHandler<EffectHandler::kCOCR>,GenericEfitHandler<EffectHandler::kCOCR>,ActiveEffect>(EffectHandler::kCOCR,"Command Creature");
         insert<GenericMgefHandler<EffectHandler::kCOHU>,GenericEfitHandler<EffectHandler::kCOHU>,ActiveEffect>(EffectHandler::kCOHU,"Command Humanoid");
         insert<GenericMgefHandler<EffectHandler::kREAN>,GenericEfitHandler<EffectHandler::kREAN>,ActiveEffect>(EffectHandler::kREAN,"Reanimate");
@@ -74,9 +76,8 @@ public:
         insert<GenericValueModifierMgefHandler<EffectHandler::kNEYE>,GenericValueModifierEfitHandler<EffectHandler::kNEYE>,ValueModifierEffect>(EffectHandler::kNEYE,"Night Eye");
         insert<GenericValueModifierMgefHandler<EffectHandler::kDARK>,GenericValueModifierEfitHandler<EffectHandler::kDARK>,ValueModifierEffect>(EffectHandler::kDARK,"Darkness");
         insert<GenericValueModifierMgefHandler<EffectHandler::kTELE>,GenericValueModifierEfitHandler<EffectHandler::kTELE>,ValueModifierEffect>(EffectHandler::kTELE,"Telekinesis");
-        insert<GenericMgefHandler<EffectHandler::kSUMN>,GenericEfitHandler<EffectHandler::kSUMN>,ActiveEffect>(EffectHandler::kSUMN,"Summon");
-        insert<GenericMgefHandler<EffectHandler::kSMAC>,GenericEfitHandler<EffectHandler::kSMAC>,ActiveEffect>(EffectHandler::kSMAC,"Summon Actor");
-        insert<GenericMgefHandler<EffectHandler::kSMBO>,GenericEfitHandler<EffectHandler::kSMBO>,ActiveEffect>(EffectHandler::kSMBO,"Bound Item");
+        insert<SummonCreatureMgefHandler,SummonCreatureEfitHandler,SummonCreatureEffect>(EffectHandler::kSMAC,"Summon Actor");
+        insert<BoundItemMgefHandler,BoundItemEfitHandler,BoundItemEffect>(EffectHandler::kSMBO,"Bound Item");
     }
 
 } g_handlerMap;
@@ -87,87 +88,6 @@ const char* EffectHandler::HandlerName() const
     HandlerMap::iterator it = g_handlerMap.find(HandlerCode());
     if (it != g_handlerMap.end()) return it->second._ehName;
     return 0; // unrecognized handler
-}
-UInt32 EffectHandler::GetDefaultHandlerCode(UInt32 mgefCode)
-{   
-    if (!EffectSetting::IsMgefCodeVanilla(mgefCode)) 
-    {
-        _DMESSAGE("Default Handler for effect '%4.4s' {%08X} is 'ACTV' because code is not vanilla",&mgefCode,mgefCode);
-        return 'VTCA'; // default handler
-    }
-
-    mgefCode = Swap32(mgefCode);
-    UInt32 ehCode = 0;
-
-    // compare first character
-    switch (mgefCode >> 0x18)
-    {
-    case 'R': // rally, restore, resist, reflect & reanimate
-    case 'W': // water walking, water breathing, weakness
-         if (mgefCode != 'REAN') ehCode = 'MDAV';
-         break;
-    case 'Z':
-        ehCode = 'SMAC';  // summon actor
-        break;
-    }
-    // compare first two characters
-    if (!ehCode)
-    {
-        switch (mgefCode >> 0x10)
-        {
-        case 'AB': // absorb
-            ehCode = 'ABSB'; 
-            break;
-        case 'BA': // bound armor
-        case 'BW': // bound weapon
-        case 'MY': // mythic dawn gear
-            ehCode = 'SMBO';
-            break;
-        case 'CU': // cure
-            ehCode = 'CURE';
-            break;
-        case 'DG': // damage
-        case 'DR': // drain
-        case 'FO': // fortify
-            ehCode = 'MDAV';
-            break;
-        }
-    }
-    // compare all characters
-    if (!ehCode)
-    {
-        switch (mgefCode)
-        {
-        case 'FISH': // fire shield
-        case 'LISH': // shock shield
-        case 'FRSH': // frost shield
-        case 'SHLD': // shield
-            ehCode = 'SHLD';
-            break;
-        case 'POSN': // poison VFX effect
-        case 'DISE': // disease VFX effect
-            ehCode = 'ACTV';
-            break;
-        case 'BRDN': // burden
-        case 'CHRM': // charm
-        case 'DUMY': // Merhunes Dagon effect
-        case 'FIDG': // fire damage
-        case 'FRDG': // frost damage
-        case 'FTHR': // feather
-        case 'SABS': // absorb spell
-        case 'SHDG': // shock damage
-        case 'SLNC': // silence
-        case 'STMA': // stunted magicka
-            ehCode = 'MDAV';
-            break;
-        }
-    }
-    if (!ehCode) ehCode = mgefCode; // assume effect code is also handler code
-
-    mgefCode = Swap32(mgefCode);
-    ehCode = Swap32(ehCode);
-    _DMESSAGE("Default Handler for effect '%4.4s' {%08X} is '%4.4s'",&mgefCode,mgefCode,&ehCode);
-    return ehCode;
 }
 bool EffectHandler::GetNextHandler(UInt32& ehCode, const char*& ehName)
 {

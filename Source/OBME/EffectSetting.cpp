@@ -21,7 +21,7 @@
 #include "Components/TESFileFormats.h"
 #include "Utilities/Memaddr.h"
 
-#include <set>
+#include <map>
 #include <typeinfo>
 
 #pragma warning (disable:4800) // forced typecast of int to bool
@@ -287,15 +287,13 @@ bool EffectSetting::LoadForm(TESFile& file)
         TESFileFormats::ResolveModValue(data.areaSound,file,TESFileFormats::kResolutionType_FormID); // Area Sound
         TESFileFormats::ResolveModValue(data.resistAV,file,TESFileFormats::kResolutionType_ActorValue); // Resistance AV (for AddActorValues)
         TESFileFormats::ResolveModValue(data.school,file,TESFileFormats::kResolutionType_FormID); // School (for extended school types)
-        // backup original DATA values that require special processing
-        UInt32 _mgefFlags = mgefFlags;
         // copy DATA onto mgef
         memcpy(&mgefFlags,&data,sizeof(data));
         SetResistAV(data.resistAV); // standardize resistance value
         // flags (mgef + obme)
         if (loadVersion == VERSION_VANILLA_OBLIVION) 
         {            
-            mgefFlags = (data.mgefFlags & 0x0FC03C00) | (_mgefFlags & ~0x0FE03C00);  // vanilla mgef records can't override all flags
+            mgefFlags = (data.mgefFlags & kMgefFlag__Overridable) | GetDefaultMgefFlags(mgefCode);  // vanilla mgef records can't override all flags
             mgefObmeFlags = 0;
             SetHostility(GetDefaultHostility(mgefCode));
         }
@@ -483,12 +481,12 @@ void EffectSetting::LinkForm()
     enchantShader = (TESEffectShader*)TESForm::LookupByFormID((UInt32)enchantShader);
     light = (TESObjectLIGH*)TESForm::LookupByFormID((UInt32)light);
     #ifndef OBLIVION
-    if (castingSound) ((TESForm*)castingSound)->AddReference(this);
-    if (boltSound) ((TESForm*)boltSound)->AddReference(this);
-    if (hitSound) ((TESForm*)hitSound)->AddReference(this);
-    if (effectShader) ((TESForm*)effectShader)->AddReference(this);
-    if (enchantShader) ((TESForm*)enchantShader)->AddReference(this);
-    if (light) ((TESForm*)light)->AddReference(this);
+    if (castingSound) ((TESForm*)castingSound)->AddCrossReference(this);
+    if (boltSound) ((TESForm*)boltSound)->AddCrossReference(this);
+    if (hitSound) ((TESForm*)hitSound)->AddCrossReference(this);
+    if (effectShader) ((TESForm*)effectShader)->AddCrossReference(this);
+    if (enchantShader) ((TESForm*)enchantShader)->AddCrossReference(this);
+    if (light) ((TESForm*)light)->AddCrossReference(this);
     // TODO - school, resistanceAV
     #endif
     
@@ -509,17 +507,87 @@ void EffectSetting::CopyFrom(TESForm& copyFrom)
     EffectSetting* mgef = (EffectSetting*)dynamic_cast<::EffectSetting*>(&copyFrom);
     if (!mgef)
     {
-        BSStringT desc;
-        copyFrom.GetDebugDescription(desc);        
+        BSStringT desc; copyFrom.GetDebugDescription(desc);        
         _WARNING("Attempted copy from %s",desc.c_str());
         return;
     }    
 
-    // copy effect code
+    // copy BaseFormComponents
+    TESForm::CopyGenericComponentsFrom(copyFrom);
+    
+    // floating point members
+    baseCost = mgef->baseCost;
+    enchantFactor = mgef->enchantFactor;
+    barterFactor = mgef->barterFactor;
+    projSpeed = mgef->projSpeed;
+
+    // resistAV - TODO - Add/Remove references from AV token
+    SetResistAV(mgef->GetResistAV()); // standardize 'no resistance' code
+
+    // resistAV - TODO - Add/Remove references from school token
+    school = mgef->school;
+
+    // VFX, AFX
+    if (light)  ((TESForm*)light)->RemoveCrossReference(this);
+    if (light = mgef->light)    ((TESForm*)light)->AddCrossReference(this);
+    if (effectShader)  ((TESForm*)effectShader)->RemoveCrossReference(this);
+    if (effectShader = mgef->effectShader)    ((TESForm*)effectShader)->AddCrossReference(this);
+    if (enchantShader)  ((TESForm*)enchantShader)->RemoveCrossReference(this);
+    if (enchantShader = mgef->enchantShader)    ((TESForm*)enchantShader)->AddCrossReference(this);
+    if (castingSound)  ((TESForm*)castingSound)->RemoveCrossReference(this);
+    if (castingSound = mgef->castingSound)    ((TESForm*)castingSound)->AddCrossReference(this);
+    if (boltSound)  ((TESForm*)boltSound)->RemoveCrossReference(this);
+    if (boltSound = mgef->boltSound)    ((TESForm*)boltSound)->AddCrossReference(this);
+    if (hitSound)  ((TESForm*)hitSound)->RemoveCrossReference(this);
+    if (hitSound = mgef->hitSound)    ((TESForm*)hitSound)->AddCrossReference(this);
+    if (areaSound)  ((TESForm*)areaSound)->RemoveCrossReference(this);
+    if (areaSound = mgef->areaSound)    ((TESForm*)areaSound)->AddCrossReference(this);
+
+    // counter array
+    if (counterArray)
+    {
+        // clear refs to counter effects
+        for (int i = 0; i < numCounters; i++)
+        {
+            if (::EffectSetting* counter = EffectSetting::LookupByCode(counterArray[i])) {counter->RemoveCrossReference(this);}
+        }
+        // clear current counter array
+        MemoryHeap::FormHeapFree(counterArray);
+        counterArray = 0;
+        numCounters = 0;
+    }
+    if (mgef->counterArray && (numCounters = mgef->numCounters))
+    {
+        counterArray = (UInt32*)MemoryHeap::FormHeapAlloc(numCounters * 4);
+        // clear refs to counter effects
+        for (int i = 0; i < numCounters; i++)
+        {
+            counterArray[i] = mgef->counterArray[i];
+            if (::EffectSetting* counter = EffectSetting::LookupByCode(counterArray[i])) {counter->AddCrossReference(this);}
+        }
+    }
+
+    // flags
+    mgefFlags = mgef->mgefFlags;
+    mgefObmeFlags = mgef->mgefObmeFlags;
+
+    // handler & mgefParam
+    MgefHandler* newHandler = MgefHandler::Create(mgef->GetHandler().HandlerCode(),*this);
+    newHandler->CopyFrom(mgef->GetHandler());   // manages CrossRefs for mgefParam
+    SetHandler(newHandler);
+    mgefParam = mgef->mgefParam;    // handler only copies if it uses the param
+    
+    // assign a formID for non-temporary objects that don't already have one
+    if ((~formFlags & kFormFlags_Temporary) && formID == 0 && TESDataHandler::dataHandler)
+    {
+        SetFormID(TESDataHandler::dataHandler->ReserveNextUnusedFormID());
+    }
+    
+    // effect code
     if (mgefCode != mgef->mgefCode)
     {
-        if (formFlags & TESForm::kFormFlags_Temporary) mgefCode = mgef->mgefCode;   // this form is temporary, simply copy effect code
-        else if (mgef->formFlags & TESForm::kFormFlags_Temporary)
+        if (formFlags & kFormFlags_Temporary) mgefCode = mgef->mgefCode;   // this form is temporary, simply copy effect code
+        else if (mgef->formFlags & kFormFlags_Temporary)
         {
             // other form is temporary, but this one is not
             bool proceed = true;
@@ -543,24 +611,6 @@ void EffectSetting::CopyFrom(TESForm& copyFrom)
             }
         }
     }
-
-    // call vanilla mgef copy
-    UInt32 curCode = mgefCode; // cache mgefCode
-    ::EffectSetting::CopyFrom(copyFrom); // (copies effect code)
-    mgefCode = curCode; // restore cached code
-
-    // copy resistAV (again) to standardize 'invalid' av code
-    SetResistAV(mgef->GetResistAV());
-
-    // copy flags
-    mgefObmeFlags = mgef->mgefObmeFlags;
-
-    // copy handler
-    MgefHandler* newHandler = MgefHandler::Create(mgef->GetHandler().HandlerCode(),*this);
-    newHandler->CopyFrom(mgef->GetHandler());
-    SetHandler(newHandler);
-
-    // TODO - references in CS
 }
 bool EffectSetting::CompareTo(TESForm& compareTo)
 {        
@@ -639,9 +689,9 @@ bool EffectSetting::CompareTo(TESForm& compareTo)
     return BoolEx(kCompareSuccess);
 }
 #ifndef OBLIVION
-static const UInt32 kTabCount = 4;
-static const UInt32 kTabTemplateID[kTabCount] = {IDD_MGEF_GENERAL,IDD_MGEF_DYNAMICS,IDD_MGEF_FX,IDD_MGEF_HANDLER};
-static const char* kTabLabels[kTabCount] = {"General","Dynamics","FX","Handler"};
+static const UInt32 kTabCount = 5;
+static const UInt32 kTabTemplateID[kTabCount] = {IDD_MGEF_GENERAL,IDD_MGEF_DYNAMICS,IDD_MGEF_GROUPS,IDD_MGEF_FX,IDD_MGEF_HANDLER};
+static const char* kTabLabels[kTabCount] = {"General","Dynamics","Groups","FX","Handler"};
 static const char* kNoneEntry = " NONE ";
 static const UInt32 WM_USERCOMMAND =  WM_APP + 0x55; // send in lieu of WM_COMMAND to avoid problems with TESFormIDListVIew::DlgProc 
 bool ExtraDataList_RemoveData(BaseExtraList* list, BSExtraData* data, bool destroy = true)
@@ -773,18 +823,9 @@ void EffectSetting::InitializeDialog(HWND dialog)
     }
 
     // DYNAMICS
-        // Cost Callbacks
-        ctl = GetDlgItem(dialog,IDC_MGEF_GETCOSTCALLBACK);
+        // Cost Callback
+        ctl = GetDlgItem(dialog,IDC_MGEF_COSTCALLBACK);
         TESComboBox::PopulateWithScripts(ctl,true,false,false);
-        ctl = GetDlgItem(dialog,IDC_MGEF_SETCOSTCALLBACK);
-        TESComboBox::PopulateWithScripts(ctl,true,false,false);
-        // Shielding
-        ctl = GetDlgItem(dialog,IDC_MGEF_PROVIDESSHIELDING);
-        TESComboBox::Clear(ctl);
-        TESComboBox::AddItem(ctl,kNoneEntry,(void*)0);
-        ctl = GetDlgItem(dialog,IDC_MGEF_DAMAGESSHIELDING);
-        TESComboBox::Clear(ctl);
-        TESComboBox::AddItem(ctl,kNoneEntry,(void*)0);
         // Resistance AV
         ctl = GetDlgItem(dialog,IDC_MGEF_RESISTVALUE);
         TESComboBox::PopulateWithActorValues(ctl,true,false);
@@ -903,18 +944,24 @@ bool EffectSetting::DialogMessageCallback(HWND dialog, UINT uMsg, WPARAM wParam,
                 _VMESSAGE("Handler changed");
                 ctl = GetDlgItem(dialog,IDC_MGEF_HANDLER);
                 // create a new handler if necessary
+                bool requiresInit = false;
                 UInt32 ehCode = (UInt32)TESComboBox::GetCurSelData(ctl);
-                if (ehCode != GetHandler().HandlerCode()) SetHandler(MgefHandler::Create(ehCode,*this));
+                if (ehCode != GetHandler().HandlerCode()) 
+                {
+                    GetHandler().CleanupDialog(dialog); // cleanup dialog for current handler
+                    SetHandler(MgefHandler::Create(ehCode,*this));  // set new handler
+                    requiresInit = true;    // flag handler for initialization
+                }
                 // change dialog templates if necessary
                 DialogExtraSubwindow* extraSubwindow = (DialogExtraSubwindow*)GetWindowLong(ctl,GWL_USERDATA);
                 if (extraSubwindow && GetHandler().DialogTemplateID() != extraSubwindow->dialogTemplateID)
                 {
-                     ExtraDataList_RemoveData(TESDialog::GetDialogExtraList(dialog),extraSubwindow,true);
-                     extraSubwindow = 0;
+                    ExtraDataList_RemoveData(TESDialog::GetDialogExtraList(dialog),extraSubwindow,true);
+                    extraSubwindow = 0;
                 }
                 // create a new subwindow if necessary
                 if (GetHandler().DialogTemplateID() && !extraSubwindow)
-                {                    
+                {        
                     TESDialog::Subwindow* subwindow = new TESDialog::Subwindow;               
                     // set subwindow position relative to parent dialog
                     subwindow->hDialog = dialog;
@@ -929,8 +976,6 @@ bool EffectSetting::DialogMessageCallback(HWND dialog, UINT uMsg, WPARAM wParam,
                     TESDialog::BuildSubwindow(GetHandler().DialogTemplateID(),subwindow);
                     // add subwindow extra data to parent
                     extraSubwindow = TESDialog::AddDialogExtraSubwindow(dialog,GetHandler().DialogTemplateID(),subwindow);
-                    // initialize
-                    GetHandler().InitializeDialog(dialog);
                     // hide controls if handler tab is nto selected
                     int cursel = TabCtrl_GetCurSel(GetDlgItem(dialog,IDC_MGEF_TABS));
                     if (cursel < 0 || kTabTemplateID[cursel] != IDD_MGEF_HANDLER)
@@ -940,9 +985,13 @@ bool EffectSetting::DialogMessageCallback(HWND dialog, UINT uMsg, WPARAM wParam,
                             ShowWindow(node->data, false);
                         }
                     }
+                    // flag handler for initialization
+                    requiresInit = true;
                 }
                 // store current dialog template in handler selection window UserData
                 SetWindowLong(ctl,GWL_USERDATA,(UInt32)extraSubwindow);
+                // initialize
+                if (requiresInit) GetHandler().InitializeDialog(dialog);
                 // set handler in dialog
                 GetHandler().SetInDialog(dialog);
                 result = 0; return true;  // retval = false signals command handled
@@ -1038,11 +1087,7 @@ void EffectSetting::SetInDialog(HWND dialog)
         // Cost
         TESDialog::SetDlgItemTextFloat(dialog,IDC_MGEF_BASECOST,baseCost);
         TESDialog::SetDlgItemTextFloat(dialog,IDC_MGEF_DISPELFACTOR,0/*TODO*/);
-        TESComboBox::SetCurSelByData(GetDlgItem(dialog,IDC_MGEF_GETCOSTCALLBACK),0/*TODO*/);
-        TESComboBox::SetCurSelByData(GetDlgItem(dialog,IDC_MGEF_SETCOSTCALLBACK),0/*TODO*/);
-        // Shielding        
-        TESComboBox::SetCurSelByData(GetDlgItem(dialog,IDC_MGEF_PROVIDESSHIELDING),0/*TODO*/);
-        TESComboBox::SetCurSelByData(GetDlgItem(dialog,IDC_MGEF_DAMAGESSHIELDING),0/*TODO*/);
+        TESComboBox::SetCurSelByData(GetDlgItem(dialog,IDC_MGEF_COSTCALLBACK),0/*TODO*/);
         // Resistance
         TESComboBox::SetCurSelByData(GetDlgItem(dialog,IDC_MGEF_RESISTVALUE),(void*)GetResistAV());
         // Hostility
@@ -1134,11 +1179,7 @@ void EffectSetting::GetFromDialog(HWND dialog)
     {
         // Cost
         /*TODO = */ TESDialog::GetDlgItemTextFloat(dialog,IDC_MGEF_DISPELFACTOR);
-        /*TODO = */ TESComboBox::GetCurSelData(GetDlgItem(dialog,IDC_MGEF_GETCOSTCALLBACK));
-        /*TODO = */ TESComboBox::GetCurSelData(GetDlgItem(dialog,IDC_MGEF_SETCOSTCALLBACK));
-        // Shielding        
-        /*TODO = */ TESComboBox::GetCurSelData(GetDlgItem(dialog,IDC_MGEF_PROVIDESSHIELDING));
-        /*TODO = */ TESComboBox::GetCurSelData(GetDlgItem(dialog,IDC_MGEF_DAMAGESSHIELDING));
+        /*TODO = */ TESComboBox::GetCurSelData(GetDlgItem(dialog,IDC_MGEF_COSTCALLBACK));
         // Hostility
         SetHostility((UInt8)TESComboBox::GetCurSelData(GetDlgItem(dialog,IDC_MGEF_HOSTILITY)));
         // Mag, Dur, Area, Range
@@ -1223,71 +1264,208 @@ BSStringT EffectSetting::GetDebugDescEx()
     return desc;
 }
 // conversion
+struct VanillaEffectData
+{
+    // members
+    UInt32  ehCode;
+    UInt32  staticFlags;
+    UInt8   hostility;
+};
+class VanillaEffectsMap : public std::map<UInt32,VanillaEffectData>
+{
+public:    
+    inline void insert(UInt32 sMgefCode, UInt32 sEHCode, UInt32 staticFlags, UInt8 hostility)
+    {
+        VanillaEffectData entry;
+        entry.ehCode = Swap32(sEHCode);
+        entry.staticFlags = staticFlags;
+        entry.hostility = hostility;        
+        std::map<UInt32,VanillaEffectData>::insert(std::pair<UInt32,VanillaEffectData>(Swap32(sMgefCode),entry));
+    }
+    VanillaEffectsMap()
+    {
+        // don't put output statements here, as the output log may not yet be initialized        
+        insert('JRSH','ACTV',0x00000170,Magic::kHostility_Neutral);
+        insert('BW06','SMBO',0x00010112,Magic::kHostility_Beneficial);
+        insert('Z003','SMAC',0x00040112,Magic::kHostility_Beneficial);
+        insert('ABFA','ABSB',0x00000025,Magic::kHostility_Hostile);
+        insert('FOAT','MDAV',0x00100072,Magic::kHostility_Beneficial);
+        insert('STRP','STRP',0x00000163,Magic::kHostility_Hostile);
+        insert('DRSP','MDAV',0x00000077,Magic::kHostility_Hostile);
+        insert('BWMA','SMBO',0x00010112,Magic::kHostility_Beneficial);
+        insert('FOMM','MDAV',0x00000012,Magic::kHostility_Beneficial);
+        insert('RSWD','MDAV',0x0000017A,Magic::kHostility_Beneficial);
+        insert('DTCT','DTCT',0x80000012,Magic::kHostility_Beneficial);
+        insert('POSN','ACTV',0x00000000,Magic::kHostility_Neutral);
+        insert('WKFI','MDAV',0x0000007F,Magic::kHostility_Hostile);
+        insert('BA07','SMBO',0x00020112,Magic::kHostility_Beneficial);
+        insert('Z016','SMAC',0x00040112,Magic::kHostility_Beneficial);
+        insert('ZCLA','SMAC',0x00040112,Magic::kHostility_Beneficial);
+        insert('ZSKC','SMAC',0x00040112,Magic::kHostility_Beneficial);
+        insert('Z007','SMAC',0x00040112,Magic::kHostility_Beneficial);
+        insert('ZFIA','SMAC',0x00040112,Magic::kHostility_Beneficial);
+        insert('FOFA','MDAV',0x00000072,Magic::kHostility_Beneficial);
+        insert('SUDG','SUDG',0x00000014,Magic::kHostility_Neutral);
+        insert('WKPO','MDAV',0x0000007F,Magic::kHostility_Hostile);
+        insert('DSPL','DSPL',0x000000F0,Magic::kHostility_Neutral);
+        insert('BWBO','SMBO',0x00010112,Magic::kHostility_Beneficial);
+        insert('ZLIC','SMAC',0x00040112,Magic::kHostility_Beneficial);
+        insert('RSSH','MDAV',0x0000007A,Magic::kHostility_Beneficial);
+        insert('REAT','MDAV',0x00100070,Magic::kHostility_Beneficial);
+        insert('RFLC','MDAV',0x0000007A,Magic::kHostility_Beneficial);
+        insert('SHDG','MDAV',0x20000075,Magic::kHostility_Hostile);
+        insert('BASH','SMBO',0x00020112,Magic::kHostility_Beneficial);
+        insert('ZZOM','SMAC',0x00040112,Magic::kHostility_Beneficial);
+        insert('SLNC','MDAV',0x00000173,Magic::kHostility_Hostile);
+        insert('BW03','SMBO',0x00010112,Magic::kHostility_Beneficial);
+        insert('CUDI','CURE',0x000001F0,Magic::kHostility_Beneficial);
+        insert('ABSP','ABSB',0x00000025,Magic::kHostility_Hostile);
+        insert('REFA','MDAV',0x00000070,Magic::kHostility_Beneficial);
+        insert('LOCK','LOCK',0x000000E0,Magic::kHostility_Neutral);
+        insert('BA04','SMBO',0x00020112,Magic::kHostility_Beneficial);
+        insert('Z013','SMAC',0x00040112,Magic::kHostility_Beneficial);
+        insert('RSFI','MDAV',0x0000007A,Magic::kHostility_Beneficial);
+        insert('CHML','CHML',0x0000007A,Magic::kHostility_Beneficial);
+        insert('DGHE','MDAV',0x20000075,Magic::kHostility_Hostile);
+        insert('BW07','SMBO',0x00010112,Magic::kHostility_Beneficial);
+        insert('Z004','SMAC',0x00040112,Magic::kHostility_Beneficial);
+        insert('ZFRA','SMAC',0x00040112,Magic::kHostility_Beneficial);
+        insert('SHLD','SHLD',0x0000007A,Magic::kHostility_Beneficial);
+        insert('ZXIV','SMAC',0x00040112,Magic::kHostility_Beneficial);
+        insert('RSPO','MDAV',0x0000007A,Magic::kHostility_Beneficial);
+        insert('FOSP','MDAV',0x00000072,Magic::kHostility_Beneficial);
+        insert('INVI','INVI',0x00000172,Magic::kHostility_Beneficial);
+        insert('WABR','MDAV',0x00000172,Magic::kHostility_Beneficial);
+        insert('BA08','SMBO',0x00020112,Magic::kHostility_Beneficial);
+        insert('BWAX','SMBO',0x00010112,Magic::kHostility_Beneficial);
+        insert('Z017','SMAC',0x00040112,Magic::kHostility_Beneficial);
+        insert('DEMO','DEMO',0x40000066,Magic::kHostility_Neutral);
+        insert('BAGA','SMBO',0x00020112,Magic::kHostility_Beneficial);
+        insert('Z008','SMAC',0x00040112,Magic::kHostility_Beneficial);
+        insert('REDG','MDAV',0x0000001A,Magic::kHostility_Beneficial);
+        insert('DRHE','MDAV',0x00000077,Magic::kHostility_Hostile);
+        insert('ZDAE','SMAC',0x00040112,Magic::kHostility_Beneficial);
+        insert('TURN','TURN',0x40000063,Magic::kHostility_Hostile);
+        insert('BA10','SMBO',0x00020112,Magic::kHostility_Beneficial);
+        insert('ZDRL','SMAC',0x00040112,Magic::kHostility_Beneficial);
+        insert('ZSKH','SMAC',0x00040112,Magic::kHostility_Beneficial);
+        insert('PARA','PARA',0x00000173,Magic::kHostility_Hostile);
+        insert('VAMP','VAMP',0x10000092,Magic::kHostility_Neutral);
+        insert('BA01','SMBO',0x00020112,Magic::kHostility_Beneficial);
+        insert('BWSW','SMBO',0x00010112,Magic::kHostility_Beneficial);
+        insert('Z010','SMAC',0x00040112,Magic::kHostility_Beneficial);
+        insert('RESP','MDAV',0x00000070,Magic::kHostility_Beneficial);
+        insert('BW04','SMBO',0x00010112,Magic::kHostility_Beneficial);
+        insert('Z001','SMAC',0x00040112,Magic::kHostility_Beneficial);
+        insert('ZHDZ','SMAC',0x00040112,Magic::kHostility_Beneficial);
+        insert('SABS','MDAV',0x00000072,Magic::kHostility_Beneficial);
+        insert('WKFR','MDAV',0x0000007F,Magic::kHostility_Hostile);
+        insert('RALY','MDAV',0x00000062,Magic::kHostility_Neutral);
+        insert('REAN','REAN',0x10000360,Magic::kHostility_Neutral);
+        insert('BA05','SMBO',0x00020112,Magic::kHostility_Beneficial);
+        insert('Z014','SMAC',0x00040112,Magic::kHostility_Beneficial);
+        insert('ZDRE','SMAC',0x00040112,Magic::kHostility_Beneficial);
+        insert('ZSKA','SMAC',0x00040112,Magic::kHostility_Beneficial);
+        insert('RSPA','MDAV',0x0000007A,Magic::kHostility_Beneficial);
+        insert('LGHT','LGHT',0x80000072,Magic::kHostility_Neutral);
+        insert('OPEN','OPEN',0x000000C0,Magic::kHostility_Neutral);
+        insert('BW08','SMBO',0x00010112,Magic::kHostility_Beneficial);
+        insert('Z005','SMAC',0x00040112,Magic::kHostility_Beneficial);
+        insert('ZSPD','SMAC',0x00040112,Magic::kHostility_Beneficial);
+        insert('ZGHO','SMAC',0x00040112,Magic::kHostility_Beneficial);
+        insert('FRNZ','FRNZ',0x40000062,Magic::kHostility_Neutral);
+        insert('WKDI','MDAV',0x0000007F,Magic::kHostility_Hostile);
+        insert('ZSCA','SMAC',0x00040112,Magic::kHostility_Beneficial);
+        insert('ABHE','ABSB',0x00000025,Magic::kHostility_Hostile);
+        insert('WKMA','MDAV',0x0000007F,Magic::kHostility_Hostile);
+        insert('SEFF','SEFF',0x00000170,Magic::kHostility_Neutral);
+        insert('BA09','SMBO',0x00020112,Magic::kHostility_Beneficial);
+        insert('Z018','SMAC',0x00040112,Magic::kHostility_Beneficial);
+        insert('ZSKE','SMAC',0x00040112,Magic::kHostility_Beneficial);
+        insert('DGAT','MDAV',0x00100075,Magic::kHostility_Hostile);
+        insert('BW10','SMBO',0x00010112,Magic::kHostility_Beneficial);
+        insert('Z009','SMAC',0x00040112,Magic::kHostility_Beneficial);
+        insert('FISH','SHLD',0x0000007A,Magic::kHostility_Beneficial);
+        insert('BW01','SMBO',0x00010112,Magic::kHostility_Beneficial);
+        insert('FOHE','MDAV',0x00000072,Magic::kHostility_Beneficial);
+        insert('DRSK','MDAV',0x00080077,Magic::kHostility_Hostile);
+        insert('BAHE','SMBO',0x00020112,Magic::kHostility_Beneficial);
+        insert('Z020','SMAC',0x00040112,Magic::kHostility_Beneficial);
+        insert('RSFR','MDAV',0x0000007A,Magic::kHostility_Beneficial);
+        insert('DGFA','MDAV',0x00000075,Magic::kHostility_Hostile);
+        insert('BA02','SMBO',0x00020112,Magic::kHostility_Beneficial);
+        insert('Z011','SMAC',0x00040112,Magic::kHostility_Beneficial);
+        insert('ZSTA','SMAC',0x00040112,Magic::kHostility_Beneficial);
+        insert('DRAT','MDAV',0x00100077,Magic::kHostility_Hostile);
+        insert('FIDG','MDAV',0x20000075,Magic::kHostility_Hostile);
+        insert('BW05','SMBO',0x00010112,Magic::kHostility_Beneficial);
+        insert('Z002','SMAC',0x00040112,Magic::kHostility_Beneficial);
+        insert('CUPO','CURE',0x000001F0,Magic::kHostility_Beneficial);
+        insert('CHRM','MDAV',0x00000062,Magic::kHostility_Neutral);
+        insert('DUMY','MDAV',0x20000075,Magic::kHostility_Hostile);
+        insert('STMA','MDAV',0x00000112,Magic::kHostility_Neutral);
+        insert('DIWE','DIWE',0x00000075,Magic::kHostility_Hostile);
+        insert('MYTH','SMBO',0x00020112,Magic::kHostility_Beneficial);
+        insert('RSDI','MDAV',0x0000007A,Magic::kHostility_Beneficial);
+        insert('DISE','ACTV',0x00000000,Magic::kHostility_Neutral);
+        insert('WKNW','MDAV',0x0000007F,Magic::kHostility_Hostile);
+        insert('FTHR','MDAV',0x00000076,Magic::kHostility_Beneficial);
+        insert('BRDN','MDAV',0x00000073,Magic::kHostility_Hostile);
+        insert('BA06','SMBO',0x00020112,Magic::kHostility_Beneficial);
+        insert('BACU','SMBO',0x00020112,Magic::kHostility_Beneficial);
+        insert('Z015','SMAC',0x00040112,Magic::kHostility_Beneficial);
+        insert('RSMA','MDAV',0x0000007A,Magic::kHostility_Beneficial);
+        insert('REHE','MDAV',0x00000070,Magic::kHostility_Beneficial);
+        insert('DARK','DARK',0x80000072,Magic::kHostility_Neutral);
+        insert('DRFA','MDAV',0x00000077,Magic::kHostility_Hostile);
+        insert('LISH','SHLD',0x0000007A,Magic::kHostility_Beneficial);
+        insert('BW09','SMBO',0x00010112,Magic::kHostility_Beneficial);
+        insert('Z006','SMAC',0x00040112,Magic::kHostility_Beneficial);
+        insert('TELE','TELE',0x80000242,Magic::kHostility_Neutral);
+        insert('NEYE','NEYE',0x00000112,Magic::kHostility_Beneficial);
+        insert('WAWA','MDAV',0x00000172,Magic::kHostility_Beneficial);
+        insert('BWDA','SMBO',0x00010112,Magic::kHostility_Beneficial);
+        insert('CALM','CALM',0x40000066,Magic::kHostility_Neutral);
+        insert('COCR','COCR',0x40000062,Magic::kHostility_Neutral);
+        insert('Z019','SMAC',0x00040112,Magic::kHostility_Beneficial);
+        insert('ZWRL','SMAC',0x00040112,Magic::kHostility_Beneficial);
+        insert('ABSK','ABSB',0x00080027,Magic::kHostility_Hostile);
+        insert('COHU','COHU',0x40000062,Magic::kHostility_Neutral);
+        insert('ZWRA','SMAC',0x00040112,Magic::kHostility_Beneficial);
+        insert('DIAR','DIAR',0x00000075,Magic::kHostility_Hostile);
+        insert('DGSP','MDAV',0x00000075,Magic::kHostility_Hostile);
+        insert('FRSH','SHLD',0x0000007A,Magic::kHostility_Beneficial);
+        insert('MYHL','SMBO',0x00020112,Magic::kHostility_Beneficial);
+        insert('BW02','SMBO',0x00010112,Magic::kHostility_Beneficial);
+        insert('BABO','SMBO',0x00020112,Magic::kHostility_Beneficial);
+        insert('ABAT','ABSB',0x00100027,Magic::kHostility_Hostile);
+        insert('WKSH','MDAV',0x0000007F,Magic::kHostility_Hostile);
+        insert('BAGR','SMBO',0x00020112,Magic::kHostility_Beneficial);
+        insert('CUPA','CURE',0x000001F0,Magic::kHostility_Beneficial);
+        insert('FOSK','MDAV',0x00080072,Magic::kHostility_Beneficial);
+        insert('BA03','SMBO',0x00020112,Magic::kHostility_Beneficial);
+        insert('Z012','SMAC',0x00040112,Magic::kHostility_Beneficial);
+        insert('RSNW','MDAV',0x0000007A,Magic::kHostility_Beneficial);
+        insert('FRDG','MDAV',0x00000075,Magic::kHostility_Hostile);
+    }
+} vanillaEffectsMap;
 UInt8 EffectSetting::GetDefaultHostility(UInt32 mgefCode)
 {
-    if (!IsMgefCodeVanilla(mgefCode)) return Magic::kHostility_Neutral; // default hostility
-
-    mgefCode = Swap32(mgefCode);
-
-    // compare first character
-    switch (mgefCode >> 0x18)
-    {
-    case 'A': // absorb
-        return Magic::kHostility_Hostile;
-    case 'B': // bound weapon, bound armor, burden
-        if (mgefCode == 'BRDN') return Magic::kHostility_Hostile;
-        else 
-    case 'R': // rally, restore, resist, reflect & reanimate
-        if (mgefCode == 'RALY') return Magic::kHostility_Neutral;
-        else if (mgefCode == 'REAN') return Magic::kHostility_Neutral;
-        else return Magic::kHostility_Beneficial;
-    case 'I': // invisibility
-    case 'M': // mythic dawn summons
-    case 'N': // night eye
-    case 'Z': // summon actor
-        return Magic::kHostility_Beneficial;
-    }
-
-    // compare first two characters
-    switch (mgefCode >> 0x10)
-    {
-    case 'CU': // cure
-    case 'FO': // fortify
-    case 'WA': // water breathing, water walking
-        return Magic::kHostility_Beneficial;
-    case 'DG': // damage
-    case 'DR': // drain
-    case 'WK': // weakness
-        return Magic::kHostility_Hostile;
-    }
-
-    // compare all characters
-    switch (mgefCode)
-    {
-    case 'BRDN': // burden        
-    case 'DIAR': // disintegrate armor
-    case 'DIWE': // disintegrate weapon
-    case 'DUMY': // mehrunes degon effect
-    case 'FIDG': // fire damage
-    case 'FRDG': // frost damage
-    case 'PARA': // paralysis
-    case 'SHDG': // shock damage
-    case 'SLNC': // silence
-    case 'STRP': // soul trap
-    case 'TURN': // turn undead
-        return Magic::kHostility_Hostile;
-    case 'CHML': // chameleon
-    case 'DTCT': // detect life        
-    case 'FISH': // fire shield        
-    case 'FRSH': // frost shield
-    case 'FTHR': // feather
-    case 'LISH': // shock shield        
-    case 'SABS': // spell absorption        
-    case 'SHLD': // shield
-        return Magic::kHostility_Beneficial;
-    }
-    
-    return Magic::kHostility_Neutral; // all remaining effects should be neutral
+    VanillaEffectsMap::iterator it = vanillaEffectsMap.find(mgefCode); // find entry in vanilla effects map
+    if (it == vanillaEffectsMap.end()) return Magic::kHostility_Neutral; // effect is not vanilla, return default hostility
+    else return it->second.hostility;      
+}
+UInt32 EffectSetting::GetDefaultMgefFlags(UInt32 mgefCode)
+{
+    VanillaEffectsMap::iterator it = vanillaEffectsMap.find(mgefCode); // find entry in vanilla effects map
+    if (it == vanillaEffectsMap.end()) return 0; // effect is not vanilla, return default mgef flags (zero, see notes in constructor)
+    else return it->second.staticFlags; 
+}
+UInt32 EffectSetting::GetDefaultHandlerCode(UInt32 mgefCode)
+{
+    VanillaEffectsMap::iterator it = vanillaEffectsMap.find(mgefCode); // find entry in vanilla effects map
+    if (it == vanillaEffectsMap.end()) return EffectHandler::kACTV; // effect is not vanilla, use ACTV handler
+    else return it->second.ehCode; 
 }
 bool EffectSetting::RequiresObmeMgefChunks()
 {
@@ -1301,6 +1479,7 @@ bool EffectSetting::RequiresObmeMgefChunks()
         kReqOBME_ResistAV,
         kReqOBME_EditorID,
         kReqOBME_CounterEffects,
+        kReqOBME_MgefFlags,
         kReqOBME_ObmeFlags, // except 'Beneficial'
         kReqOBME_BeneficialFlag,
         kReqOBME_Handler,
@@ -1325,6 +1504,10 @@ bool EffectSetting::RequiresObmeMgefChunks()
     {
         if (!IsMgefCodeVanilla(counterArray[i])) return BoolEx(kReqOBME_CounterEffects);
     }
+
+    // non-overridable mgef flags must match vanilla values
+    if ((mgefFlags & ~kMgefFlag__Overridable) != GetDefaultMgefFlags(mgefCode)) return BoolEx(kReqOBME_MgefFlags);
+
     // OBME flags (all except beneficial must be zero)
     if (mgefObmeFlags & ~kMgefObmeFlag_Beneficial) return BoolEx(kReqOBME_ObmeFlags);
 
@@ -1332,7 +1515,7 @@ bool EffectSetting::RequiresObmeMgefChunks()
     if ((mgefObmeFlags & kMgefObmeFlag_Beneficial) && GetDefaultHostility(mgefCode) != Magic::kHostility_Beneficial) return BoolEx(kReqOBME_BeneficialFlag);
 
     // Effect Handler - must differ from default handler object
-    UInt32 defHandlerCode = EffectHandler::GetDefaultHandlerCode(mgefCode);
+    UInt32 defHandlerCode = GetDefaultHandlerCode(mgefCode);
     if (defHandlerCode != GetHandler().HandlerCode()) return BoolEx(kReqOBME_Handler);
     MgefHandler* defHandler = MgefHandler::Create(defHandlerCode,*this);
     bool handlerNoMatch = defHandler->CompareTo(GetHandler());
@@ -1421,180 +1604,9 @@ EffectSetting* EffectSetting::defaultVFXEffect     = 0;
 EffectSetting* EffectSetting::diseaseVFXEffect     = 0;
 EffectSetting* EffectSetting::poisonVFXEffect      = 0;
 // effect codes
-class VanillaEffectsSet : public std::set<UInt32>
-{
-public:
-    VanillaEffectsSet()
-    {
-        // don't put output statements here, as the output log may not yet be initialized
-        insert(Swap32('ABAT'));
-        insert(Swap32('ABFA'));
-        insert(Swap32('ABHE'));
-        insert(Swap32('ABSK'));
-        insert(Swap32('ABSP'));
-        insert(Swap32('BA01'));
-        insert(Swap32('BA02'));
-        insert(Swap32('BA03'));
-        insert(Swap32('BA04'));
-        insert(Swap32('BA05'));
-        insert(Swap32('BA06'));
-        insert(Swap32('BA07'));
-        insert(Swap32('BA08'));
-        insert(Swap32('BA09'));
-        insert(Swap32('BA10'));
-        insert(Swap32('BABO'));
-        insert(Swap32('BACU'));
-        insert(Swap32('BAGA'));
-        insert(Swap32('BAGR'));
-        insert(Swap32('BAHE'));
-        insert(Swap32('BASH'));
-        insert(Swap32('BRDN'));
-        insert(Swap32('BW01'));
-        insert(Swap32('BW02'));
-        insert(Swap32('BW03'));
-        insert(Swap32('BW04'));
-        insert(Swap32('BW05'));
-        insert(Swap32('BW06'));
-        insert(Swap32('BW07'));
-        insert(Swap32('BW08'));
-        insert(Swap32('BW09'));
-        insert(Swap32('BW10'));
-        insert(Swap32('BWAX'));
-        insert(Swap32('BWBO'));
-        insert(Swap32('BWDA'));
-        insert(Swap32('BWMA'));
-        insert(Swap32('BWSW'));
-        insert(Swap32('CALM'));
-        insert(Swap32('CHML'));
-        insert(Swap32('CHRM'));
-        insert(Swap32('COCR'));
-        insert(Swap32('COHU'));
-        insert(Swap32('CUDI'));
-        insert(Swap32('CUPA'));
-        insert(Swap32('CUPO'));
-        insert(Swap32('DARK'));
-        insert(Swap32('DEMO'));
-        insert(Swap32('DGAT'));
-        insert(Swap32('DGFA'));
-        insert(Swap32('DGHE'));
-        insert(Swap32('DGSP'));
-        insert(Swap32('DIAR'));
-        insert(Swap32('DISE'));
-        insert(Swap32('DIWE'));
-        insert(Swap32('DRAT'));
-        insert(Swap32('DRFA'));
-        insert(Swap32('DRHE'));
-        insert(Swap32('DRSK'));
-        insert(Swap32('DRSP'));
-        insert(Swap32('DSPL'));
-        insert(Swap32('DTCT'));
-        insert(Swap32('DUMY'));
-        insert(Swap32('FIDG'));
-        insert(Swap32('FISH'));
-        insert(Swap32('FOAT'));
-        insert(Swap32('FOFA'));
-        insert(Swap32('FOHE'));
-        insert(Swap32('FOMM'));
-        insert(Swap32('FOSK'));
-        insert(Swap32('FOSP'));
-        insert(Swap32('FRDG'));
-        insert(Swap32('FRNZ'));
-        insert(Swap32('FRSH'));
-        insert(Swap32('FTHR'));
-        insert(Swap32('INVI'));
-        insert(Swap32('LGHT'));
-        insert(Swap32('LISH'));
-        insert(Swap32('LOCK'));
-        insert(Swap32('MYHL'));
-        insert(Swap32('MYTH'));
-        insert(Swap32('NEYE'));
-        insert(Swap32('OPEN'));
-        insert(Swap32('PARA'));
-        insert(Swap32('POSN'));
-        insert(Swap32('RALY'));
-        insert(Swap32('REAN'));
-        insert(Swap32('REAT'));
-        insert(Swap32('REDG'));
-        insert(Swap32('REFA'));
-        insert(Swap32('REHE'));
-        insert(Swap32('RESP'));
-        insert(Swap32('RFLC'));
-        insert(Swap32('RSDI'));
-        insert(Swap32('RSFI'));
-        insert(Swap32('RSFR'));
-        insert(Swap32('RSMA'));
-        insert(Swap32('RSNW'));
-        insert(Swap32('RSPA'));
-        insert(Swap32('RSPO'));
-        insert(Swap32('RSSH'));
-        insert(Swap32('RSWD'));
-        insert(Swap32('SABS'));
-        insert(Swap32('SEFF'));
-        insert(Swap32('SHDG'));
-        insert(Swap32('SHLD'));
-        insert(Swap32('SLNC'));
-        insert(Swap32('STMA'));
-        insert(Swap32('STRP'));
-        insert(Swap32('SUDG'));
-        insert(Swap32('TELE'));
-        insert(Swap32('TURN'));
-        insert(Swap32('VAMP'));
-        insert(Swap32('WABR'));
-        insert(Swap32('WAWA'));
-        insert(Swap32('WKDI'));
-        insert(Swap32('WKFI'));
-        insert(Swap32('WKFR'));
-        insert(Swap32('WKMA'));
-        insert(Swap32('WKNW'));
-        insert(Swap32('WKPO'));
-        insert(Swap32('WKSH'));
-        insert(Swap32('Z001'));
-        insert(Swap32('Z002'));
-        insert(Swap32('Z003'));
-        insert(Swap32('Z004'));
-        insert(Swap32('Z005'));
-        insert(Swap32('Z006'));
-        insert(Swap32('Z007'));
-        insert(Swap32('Z008'));
-        insert(Swap32('Z009'));
-        insert(Swap32('Z010'));
-        insert(Swap32('Z011'));
-        insert(Swap32('Z012'));
-        insert(Swap32('Z013'));
-        insert(Swap32('Z014'));
-        insert(Swap32('Z015'));
-        insert(Swap32('Z016'));
-        insert(Swap32('Z017'));
-        insert(Swap32('Z018'));
-        insert(Swap32('Z019'));
-        insert(Swap32('Z020'));
-        insert(Swap32('ZCLA'));
-        insert(Swap32('ZDAE'));
-        insert(Swap32('ZDRE'));
-        insert(Swap32('ZDRL'));
-        insert(Swap32('ZFIA'));
-        insert(Swap32('ZFRA'));
-        insert(Swap32('ZGHO'));
-        insert(Swap32('ZHDZ'));
-        insert(Swap32('ZLIC'));
-        insert(Swap32('ZSCA'));
-        insert(Swap32('ZSKA'));
-        insert(Swap32('ZSKC'));
-        insert(Swap32('ZSKE'));
-        insert(Swap32('ZSKH'));
-        insert(Swap32('ZSPD'));
-        insert(Swap32('ZSTA'));
-        insert(Swap32('ZWRA'));
-        insert(Swap32('ZWRL'));
-        insert(Swap32('ZXIV'));
-        insert(Swap32('ZZOM'));
-    }
-} vanillaEffectsSet;
 bool EffectSetting::IsMgefCodeVanilla(UInt32 mgefCode)
 {
-    VanillaEffectsSet::iterator it = vanillaEffectsSet.find(mgefCode);
-    if (vanillaEffectsSet.find(mgefCode) != vanillaEffectsSet.end()) return true;
-    return false;
+    return (vanillaEffectsMap.find(mgefCode) != vanillaEffectsMap.end());   // find entry in vanilla effects map
 }
 bool EffectSetting::IsMgefCodeValid(UInt32 mgefCode)
 {
@@ -1650,8 +1662,9 @@ MgefHandler& EffectSetting::GetHandler()
     if (!effectHandler)
     {
         // this effect has no handler, create a default handler
-        effectHandler = MgefHandler::Create(EffectHandler::GetDefaultHandlerCode(mgefCode),*this);
-        if (!effectHandler) effectHandler = MgefHandler::Create('VTCA',*this);  // default handler not yet implemented - should never happen in release version
+        effectHandler = MgefHandler::Create(GetDefaultHandlerCode(mgefCode),*this);
+        // check if default handler not yet implemented - should never happen in release version
+        if (!effectHandler) effectHandler = MgefHandler::Create(EffectHandler::kACTV,*this); 
     }
     return *effectHandler;
 }
@@ -1886,8 +1899,8 @@ void UpdateEffectItems(TESForm* form)
 }
 void CacheVanillaEffects()
 {
-    _VMESSAGE("Caching Meta Effects ...");
     // cache pointers to meta effects
+    _VMESSAGE("Caching Meta Effects ...");
     EffectSetting::defaultVFXEffect     = (EffectSetting*)EffectSettingCollection::LookupByCode(Swap32('SEFF'));
     EffectSetting::diseaseVFXEffect     = (EffectSetting*)EffectSettingCollection::LookupByCode(Swap32('DISE'));
     EffectSetting::poisonVFXEffect      = (EffectSetting*)EffectSettingCollection::LookupByCode(Swap32('POSN'));

@@ -113,6 +113,8 @@ public:
 
     // methods: conversion
     _LOCAL static UInt8     GetDefaultHostility(UInt32 mgefCode);  // returns vanilla hostility for vanilla effect codes, neutral for new effects
+    _LOCAL static UInt32    GetDefaultMgefFlags(UInt32 mgefCode);  // returns (uneditable) vanilla mgefFlags    
+    _LOCAL static UInt32    GetDefaultHandlerCode(UInt32 mgefCode); // returns vanilla handler for vanilla effect codes, ACTV for new effects
     _LOCAL bool             RequiresObmeMgefChunks(); // returns true if obme-specific chunks are required to serialize this effect
 
     // methods: fields

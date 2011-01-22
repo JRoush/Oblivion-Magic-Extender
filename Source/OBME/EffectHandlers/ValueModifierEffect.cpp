@@ -39,6 +39,8 @@ void ValueModifierMgefHandler::CopyFrom(const MgefHandler& copyFrom)
     const ValueModifierMgefHandler* src = dynamic_cast<const ValueModifierMgefHandler*>(&copyFrom);
     if (!src) return; // wrong polymorphic type
 
+    // TODO - CrossRef incr/decr for mgefParam AV token
+
     magIsPercentage = src->magIsPercentage;
     percentageAVPart = src->percentageAVPart;
     avPart = src->avPart;

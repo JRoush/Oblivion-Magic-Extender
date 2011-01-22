@@ -329,6 +329,22 @@
 			Name="EffectHandlers"
 			>
 			<File
+				RelativePath=".\EffectHandlers\AssociatedItemEffect.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\EffectHandlers\AssociatedItemEffect.h"
+				>
+			</File>
+			<File
+				RelativePath=".\EffectHandlers\BoundItemEffect.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\EffectHandlers\BoundItemEffect.h"
+				>
+			</File>
+			<File
 				RelativePath=".\EffectHandlers\EffectHandler.cpp"
 				>
 			</File>
@@ -342,6 +358,14 @@
 			</File>
 			<File
 				RelativePath=".\EffectHandlers\EffectHandler.rc.h"
+				>
+			</File>
+			<File
+				RelativePath=".\EffectHandlers\SummonCreatureEffect.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\EffectHandlers\SummonCreatureEffect.h"
 				>
 			</File>
 			<File
@@ -375,6 +399,22 @@
 		</File>
 		<File
 			RelativePath=".\Magic.h"
+			>
+		</File>
+		<File
+			RelativePath=".\MagicGroup.cpp"
+			>
+		</File>
+		<File
+			RelativePath=".\MagicGroup.h"
+			>
+		</File>
+		<File
+			RelativePath=".\MagicGroup.rc"
+			>
+		</File>
+		<File
+			RelativePath=".\MagicGroup.rc.h"
 			>
 		</File>
 		<File

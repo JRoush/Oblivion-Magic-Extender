@@ -10,6 +10,7 @@
 // includes for initialization
 #include "OBME/EffectSetting.h"
 #include "OBME/EffectHandlers/EffectHandler.h"
+#include "OBME/MagicGroup.h"
 
 /*--------------------------------------------------------------------------------------------*/
 // global debugging log for the submodule
@@ -31,6 +32,7 @@ extern "C" _declspec(dllexport) void* Initialize()
 
     OBME::EffectHandler::Initialize();
     OBME::EffectSetting::Initialize();
+    OBME::MagicGroup::Initialize();
     
     // initialization complete
     _DMESSAGE("Submodule initialization completed sucessfully");

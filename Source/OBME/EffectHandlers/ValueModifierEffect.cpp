@@ -33,6 +33,10 @@ void ValueModifierMgefHandler::LinkHandler()
 {
     // TODO - lookup AV token and register reference in CS
 }
+void ValueModifierMgefHandler::UnlinkHandler() 
+{
+    // TODO - lookup AV token and unregister reference in CS
+}
 // copy/compare
 void ValueModifierMgefHandler::CopyFrom(const MgefHandler& copyFrom)
 {
@@ -53,6 +57,7 @@ bool ValueModifierMgefHandler::CompareTo(const MgefHandler& compareTo)
     {
         kCompareSuccess         = 0,
         kCompareFail_General    = 1,
+        kCompareFail_Base,
         kCompareFail_Polymorphic,
         kCompareFail_MagIsPerc,
         kCompareFail_PercAVPart,
@@ -60,6 +65,7 @@ bool ValueModifierMgefHandler::CompareTo(const MgefHandler& compareTo)
         kCompareFail_DetrimentalLimit,
     };
 
+    if (MgefHandler::CompareTo(compareTo)) return BoolEx(kCompareFail_Base);
     const ValueModifierMgefHandler* src = dynamic_cast<const ValueModifierMgefHandler*>(&compareTo);
     if (!src) return BoolEx(kCompareFail_Polymorphic); // wrong polymorphic type
 
@@ -159,9 +165,11 @@ void ValueModifierMgefHandler::SetInDialog(HWND dialog)
 
     // AV Source
     ctl = GetDlgItem(dialog,IDC_MDAV_AVSOURCE);
-    if (parentEffect.GetFlag(EffectSetting::kMgefFlagShift_UseAttribute)) TESComboBox::SetCurSelByData(ctl,(void*)0x001);
-    if (parentEffect.GetFlag(EffectSetting::kMgefFlagShift_UseSkill)) TESComboBox::SetCurSelByData(ctl,(void*)0x010);
-    if (parentEffect.GetFlag(EffectSetting::kMgefFlagShift_UseActorValue)) TESComboBox::SetCurSelByData(ctl,(void*)0x100);
+    int src = 0;
+    if (parentEffect.GetFlag(EffectSetting::kMgefFlagShift_UseAttribute)) src = 0x001;
+    if (parentEffect.GetFlag(EffectSetting::kMgefFlagShift_UseSkill)) src =  0x010;
+    if (!src || parentEffect.GetFlag(EffectSetting::kMgefFlagShift_UseActorValue)) src = 0x100; // default
+    TESComboBox::SetCurSelByData(ctl,(void*)src);
     SendNotifyMessage(dialog,WM_USERCOMMAND,MAKEWPARAM(IDC_MDAV_AVSOURCE,CBN_SELCHANGE),(LPARAM)GetDlgItem(dialog,IDC_MDAV_AVSOURCE)); // update AV combo
     // AV Part
     ctl = GetDlgItem(dialog,IDC_MDAV_AVPART);

@@ -147,6 +147,7 @@ MgefHandler* MgefHandler::Create(UInt32 handlerCode, EffectSetting& effect)
 bool MgefHandler::LoadHandlerChunk(TESFile& file, UInt32 RecordVersion) { return true; } // default handler stores no data in chunk
 void MgefHandler::SaveHandlerChunk() {} // default handler saves no data, and hence saves no chunk at all
 void MgefHandler::LinkHandler() {} // default handler has no fields to link
+void MgefHandler::UnlinkHandler() {}
 // copy/compare
 void MgefHandler::CopyFrom(const MgefHandler& copyFrom) {}   // default handler has no fields to copy
 bool MgefHandler::CompareTo(const MgefHandler& compareTo)

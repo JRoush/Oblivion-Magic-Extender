@@ -95,8 +95,9 @@ class MgefHandler : public EffectHandler
 {
 public:
     // constructor, destructor
-    MgefHandler(EffectSetting& effect) : parentEffect(effect) {}  // initialize fields based on parent object
-    virtual ~MgefHandler() {}
+    MgefHandler(EffectSetting& effect) : parentEffect(effect) {}  // initialize fields based on parent object.  NOTE: When initializing
+                                                                // members, check 'Linked' flag of parent and initialize accordingly.
+    virtual ~MgefHandler() {} 
 
     // creation 
     static MgefHandler*    Create(UInt32 handlerCode, EffectSetting& effect); // create polymorphic instance based on handler code    
@@ -105,6 +106,7 @@ public:
     virtual bool                LoadHandlerChunk(TESFile& file, UInt32 RecordVersion);
     virtual void                SaveHandlerChunk();
     virtual void                LinkHandler(); // must link mgefParam if necessary
+    virtual void                UnlinkHandler(); // must unlink mgefParam if necessary
 
     // copy/compare
     virtual void                CopyFrom(const MgefHandler& copyFrom);  // must incr/decr CrossRefs for mgefParam if necessary

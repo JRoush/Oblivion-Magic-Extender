@@ -25,6 +25,13 @@ void AssociatedItemMgefHandler::LinkHandler()
     if (TESForm* assocItem = TESForm::LookupByFormID(parentEffect.mgefParam)) assocItem->AddCrossReference(&parentEffect);
     #endif
 }
+void AssociatedItemMgefHandler::UnlinkHandler()
+{
+    #ifndef OBLIVION
+    // remove cross ref for the associated form
+    if (TESForm* assocItem = TESForm::LookupByFormID(parentEffect.mgefParam)) assocItem->RemoveCrossReference(&parentEffect);
+    #endif
+}
 // copy/compare
 void AssociatedItemMgefHandler::CopyFrom(const MgefHandler& copyFrom)
 {
@@ -44,10 +51,12 @@ bool AssociatedItemMgefHandler::CompareTo(const MgefHandler& compareTo)
     enum
     {
         kCompareSuccess         = 0,
-        kCompareFail_General    = 1,
+        kCompareFail_General    = 1,        
+        kCompareFail_Base,
         kCompareFail_Polymorphic,
     };
 
+    if (MgefHandler::CompareTo(compareTo)) return BoolEx(kCompareFail_Base);
     const AssociatedItemMgefHandler* src = dynamic_cast<const AssociatedItemMgefHandler*>(&compareTo);
     if (!src) return BoolEx(kCompareFail_Polymorphic); // wrong polymorphic type
 

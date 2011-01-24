@@ -19,6 +19,7 @@ public:
 
     // serialization
     virtual void                LinkHandler();
+    virtual void                UnlinkHandler();
     // copy/compare
     virtual void                CopyFrom(const MgefHandler& copyFrom);
     virtual bool                CompareTo(const MgefHandler& compareTo);

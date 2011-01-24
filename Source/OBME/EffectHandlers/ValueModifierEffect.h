@@ -22,6 +22,7 @@ public:
     virtual bool                LoadHandlerChunk(TESFile& file, UInt32 RecordVersion);
     virtual void                SaveHandlerChunk();
     virtual void                LinkHandler();
+    virtual void                UnlinkHandler();
     // copy/compare
     virtual void                CopyFrom(const MgefHandler& copyFrom);
     virtual bool                CompareTo(const MgefHandler& compareTo);

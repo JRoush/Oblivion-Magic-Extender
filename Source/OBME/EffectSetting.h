@@ -5,13 +5,14 @@
 
 // base classes
 #include "API/Magic/EffectSetting.h"
+#include "OBME/MagicGroup.h"
 
 namespace OBME {
 
 // argument classes from OBME
 class   MgefHandler;      // OBME/EffectHandlers/EffectHandler.h
 
-class EffectSetting : public ::EffectSetting
+class EffectSetting : public ::EffectSetting, public MagicGroupList
 {
 public:    
 
@@ -86,7 +87,9 @@ public:
     static EffectSetting*   diseaseVFXEffect;
     static EffectSetting*   poisonVFXEffect;
 
-    // additional members - this changes the size of EffectSetting!
+    // members
+    //     /*00/00*/ ::EffectSetting
+    //     /*++/++*/ MagicGroupList
     MEMBER /*++/++*/ MgefHandler*           effectHandler;      
     MEMBER /*++/++*/ UInt32                 mgefObmeFlags; // seperate field for overriden flags
 
@@ -114,10 +117,14 @@ public:
     // methods: debugging
     _LOCAL BSStringT        GetDebugDescEx();
 
+    // methods: serialization
+    _LOCAL void             UnlinkForm();   // reeverse of LinkForm() - converts all pointers to formIDs/codes/etc and decr all CS cross references
+
     // methods: conversion
     _LOCAL static UInt8     GetDefaultHostility(UInt32 mgefCode);  // returns vanilla hostility for vanilla effect codes, neutral for new effects
     _LOCAL static UInt32    GetDefaultMgefFlags(UInt32 mgefCode);  // returns (uneditable) vanilla mgefFlags    
     _LOCAL static UInt32    GetDefaultHandlerCode(UInt32 mgefCode); // returns vanilla handler for vanilla effect codes, ACTV for new effects
+    _LOCAL static void      GetDefaultMagicGroup(UInt32 mgefCode, UInt32& groupFormID, SInt32& groupWeight); // get default group (if any) & weight.
     _LOCAL bool             RequiresObmeMgefChunks(); // returns true if obme-specific chunks are required to serialize this effect
 
     // methods: fields

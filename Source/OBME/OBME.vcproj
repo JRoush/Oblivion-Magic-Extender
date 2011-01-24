@@ -382,10 +382,6 @@
 			>
 		</File>
 		<File
-			RelativePath=".\EffectSetting.cpp"
-			>
-		</File>
-		<File
 			RelativePath=".\EffectSetting.h"
 			>
 		</File>
@@ -395,6 +391,18 @@
 		</File>
 		<File
 			RelativePath=".\EffectSetting.rc.h"
+			>
+		</File>
+		<File
+			RelativePath=".\EffectSetting_CSdialog.cpp"
+			>
+		</File>
+		<File
+			RelativePath=".\EffectSetting_general.cpp"
+			>
+		</File>
+		<File
+			RelativePath=".\EffectSetting_hooks.cpp"
 			>
 		</File>
 		<File

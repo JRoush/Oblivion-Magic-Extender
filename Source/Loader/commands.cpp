@@ -251,12 +251,14 @@ void CSEPrintCallback(const char* message, const char* prefix)
     called whenever output is provided to CSE console, if present
     commands recognized by this parser take the form 'solutionname commandName [args...]'
     the only command for this example plugin is 'Description', which prints a description of the plugin to the log
-*/
+*/   
+    char buffer[0x200];
+    strcpy_s(buffer,sizeof(buffer),message);
     char* context = 0;
-    if (!message || _stricmp(strtok_s(const_cast<char*>(message)," \t",&context),"OBME") != 0) return; // output is not a command targeted to this plugin
-    _DMESSAGE("%s %s",prefix,message);
-    
+    if (!message || _stricmp(strtok_s(const_cast<char*>(buffer),". \t",&context),"OBME") != 0) return; // output is not a command targeted to this plugin
     const char* command = strtok_s(0," \t",&context);
+    _DMESSAGE("%s %s %s",prefix,buffer,command);
+    if (!command) return;
     const char* argA = strtok_s(0," \t",&context);
     const char* argB = strtok_s(0," \t",&context);
     const char* argC = strtok_s(0," \t",&context);

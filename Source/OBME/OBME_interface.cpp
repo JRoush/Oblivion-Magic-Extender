@@ -1,8 +1,12 @@
-#include "API/BSTypes/BSStringT.h"
-#include "API/TESForms/TESObjectREFR.h"
-
 #include "OBME/OBME_interface.h"
 #include "OBME/OBME_version.h"
+#include "OBME/EffectSetting.h"
+
+#include "API/BSTypes/BSStringT.h"
+#include "API/TESForms/TESObjectREFR.h"
+#include "API/Magic/EffectSetting.h"
+#include "API/TESFiles/TESFile.h"
+#include "API/Actors/ActorValues.h"
 
 /*
 #include "rsh\GameForms\FormBase.h"
@@ -603,6 +607,7 @@ void OBME_Interface::PrivateInterface::OBMETest(TESObjectREFR* thisObj, const ch
     BSStringT desc;
     if (thisObj) thisObj->GetDebugDescription(desc);
     _DMESSAGE("Test command on <%p> '%s' w/ args A='%s' B='%s' C='%s'",thisObj,desc.c_str(),argA,argB,argC);
+
 }
 
 // constructor

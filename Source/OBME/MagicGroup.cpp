@@ -2,9 +2,12 @@
 #include "OBME/MagicGroup.rc.h"
 #include "Components/EventManager.h"
 
+#include "OBME/MsgDesc.h"
+
 #include "API/TES/TESDataHandler.h"
 #include "API/TESFiles/TESFile.h"
 #include "API/CSDialogs/TESDialog.h"
+#include "Components/TESFileFormats.h"
 #include "Utilities/Memaddr.h"
 
 // local declaration of module handle
@@ -13,6 +16,7 @@ extern HMODULE hModule;
 
 namespace OBME {
 
+//--------------------------------------------  MagicGroup  -----------------------------------------------------
 // TESForm virtual method overrides
 MagicGroup::~MagicGroup()
 {
@@ -160,18 +164,13 @@ void MagicGroup::CleanupDialog(HWND dialog)
     dialogHandle = 0;   // clear the global dialog handle, since the window is now closed
 }
 #endif
-
 // bitmask of virtual methods that need to be manually copied from vanilla vtbls (see notes in Constructor)
 #ifdef OBLIVION
     const UInt32 TESForm_NoUseMethods[2] = { 0x86048400, 0x001E1FC7 };
-    const UInt32 BaseFormComponent_NoUseMethods[1] = {0x00};
 #else
-    const UInt32 TESForm_NoUseMethods[3] = { 0x090800D0, 0xDF783F8F, 0x00000105 };
-    const UInt32 BaseFormComponent_NoUseMethods[1] = {0xD0};
+    const UInt32 TESForm_NoUseMethods[3] = { 0x09080000, 0xDF783F8F, 0x00000105 };
 #endif
 memaddr TESForm_vtbl                (0x00A3BE3C,0x0093DA0C);
-memaddr TESFullName_vtbl            (0x00A322A0,0x00938118);
-
 // Constructor
 MagicGroup::MagicGroup()
 : TESFormIDListView(), TESFullName(), extraData(0)
@@ -197,20 +196,6 @@ MagicGroup::MagicGroup()
         }
         gLog.Outdent();
 
-        // patch up component vtbls
-        memaddr nameVtbl = (UInt32)memaddr::GetObjectVtbl(dynamic_cast<TESFullName*>(this));
-        _MESSAGE("Patching MagicGroup TESFullName vtbl @ <%p> ...",nameVtbl);        
-        gLog.Indent();
-        for (int i = 0; i < sizeof(BaseFormComponent_NoUseMethods)*0x8; i++)
-        {
-            if ((BaseFormComponent_NoUseMethods[i/0x20] >> (i%0x20)) & 1)
-            {
-                nameVtbl.SetVtblEntry(i*4,TESFullName_vtbl.GetVtblEntry(i*4));
-                _VMESSAGE("Patched Offset 0x%04X",i*4);
-            }
-        }
-        gLog.Outdent();
-
         runonce  =  false;
     }
 }
@@ -225,51 +210,46 @@ MagicGroup* MagicGroup::g_ShieldVFX             = 0;
 void MagicGroup::CreateDefaults()
 {   
     _MESSAGE("Creating default MagicGroups ...");
-    int formIDoffset = 0;
     //
-    g_SpellLimit = dynamic_cast<MagicGroup*>(TESForm::LookupByFormID(kBaseDefaultFormID + formIDoffset));
+    g_SpellLimit = dynamic_cast<MagicGroup*>(TESForm::LookupByFormID(kFormID_SpellLimit));
     if (!g_SpellLimit)
     {
         g_SpellLimit = new MagicGroup;  
-        g_SpellLimit->SetFormID(kBaseDefaultFormID + formIDoffset);
+        g_SpellLimit->SetFormID(kFormID_SpellLimit);
         TESDataHandler::dataHandler->AddFormToHandler(g_SpellLimit);
         g_SpellLimit->name = "Single Instance Spells";
         g_SpellLimit->SetEditorID("mggpSpellLimit");
     }
-    formIDoffset++;
     //
-    g_SummonCreatureLimit = dynamic_cast<MagicGroup*>(TESForm::LookupByFormID(kBaseDefaultFormID + formIDoffset));
+    g_SummonCreatureLimit = dynamic_cast<MagicGroup*>(TESForm::LookupByFormID(kFormID_SummonCreatureLimit));
     if (!g_SummonCreatureLimit)
     {
         g_SummonCreatureLimit = new MagicGroup;  
-        g_SummonCreatureLimit->SetFormID(kBaseDefaultFormID + formIDoffset);
+        g_SummonCreatureLimit->SetFormID(kFormID_SummonCreatureLimit);
         TESDataHandler::dataHandler->AddFormToHandler(g_SummonCreatureLimit);
         g_SummonCreatureLimit->name = "Limited Summon Effects";
         g_SummonCreatureLimit->SetEditorID("mggpSummonCreatureLimit");
     }
-    formIDoffset++;
     //
-    g_BoundWeaponLimit = dynamic_cast<MagicGroup*>(TESForm::LookupByFormID(kBaseDefaultFormID + formIDoffset));
+    g_BoundWeaponLimit = dynamic_cast<MagicGroup*>(TESForm::LookupByFormID(kFormID_BoundWeaponLimit));
     if (!g_BoundWeaponLimit)
     {
         g_BoundWeaponLimit = new MagicGroup;  
-        g_BoundWeaponLimit->SetFormID(kBaseDefaultFormID + formIDoffset);
+        g_BoundWeaponLimit->SetFormID(kFormID_BoundWeaponLimit);
         TESDataHandler::dataHandler->AddFormToHandler(g_BoundWeaponLimit);
         g_BoundWeaponLimit->name = "Limited Bound Weapons";
         g_BoundWeaponLimit->SetEditorID("mggpBoundWeaponLimit");
     }
-    formIDoffset++;
     //
-    g_ShieldVFX = dynamic_cast<MagicGroup*>(TESForm::LookupByFormID(kBaseDefaultFormID + formIDoffset));
+    g_ShieldVFX = dynamic_cast<MagicGroup*>(TESForm::LookupByFormID(kFormID_ShieldVFX));
     if (!g_ShieldVFX)
     {
         g_ShieldVFX = new MagicGroup;  
-        g_ShieldVFX->SetFormID(kBaseDefaultFormID + formIDoffset);
+        g_ShieldVFX->SetFormID(kFormID_ShieldVFX);
         TESDataHandler::dataHandler->AddFormToHandler(g_ShieldVFX);
         g_ShieldVFX->name = "Shield VFX Response";
         g_ShieldVFX->SetEditorID("mggpShieldVFX");
     }
-    formIDoffset++;
 }
 void MagicGroup::ClearDefaults()
 {
@@ -318,7 +298,6 @@ void MagicGroup::OpenDialog()
     }
 }
 #endif
-
 // global initialization function
 void MagicGroup::Initialize()
 {
@@ -349,6 +328,385 @@ void MagicGroup::Initialize()
     EventManager::RegisterEventCallback(EventManager::CSMainWindow_WMCommand,&MagicGroup_CSMenuHook);
 
     #endif
+}
+
+//--------------------------------------------  MagicGroupList  -----------------------------------------------------
+// virtual method overrides:
+void MagicGroupList::InitializeComponent()
+{
+    ClearMagicGroups(); // clear group list
+}
+void MagicGroupList::ClearComponentReferences()
+{
+    ClearMagicGroups(); // clear group list
+}
+void MagicGroupList::CopyComponentFrom(const BaseFormComponent& source)
+{
+    _DMESSAGE("");
+    const MagicGroupList* src = dynamic_cast<const MagicGroupList*>(&source);
+    TESForm* parentForm = dynamic_cast<TESForm*>(this);
+    if (!src) return;   // invalid polymorphic type
+    
+    // clear refs to groups currently in list, add refs to groups in source list
+    #ifndef OBLIVION
+    if (parentForm)
+    {
+        for (GroupEntry* entry = groupList; entry; entry = entry->next)
+        {
+            if (entry->group) entry->group->RemoveCrossReference(parentForm);
+        }
+        for (GroupEntry* entry = src->groupList; entry; entry = entry->next)
+        {
+            if (entry->group) entry->group->AddCrossReference(parentForm);
+        }
+    }
+    #endif
+    // clear existing list
+    ClearMagicGroups(); 
+    // copy entries from source list
+    for (GroupEntry* entry = src->groupList; entry; entry = entry->next)
+    {
+        GroupEntry* newEntry = new GroupEntry;
+        newEntry->group = entry->group;
+        newEntry->weight = entry->weight;
+        newEntry->next = groupList;
+        groupList = newEntry;
+    }
+}
+bool MagicGroupList::CompareComponentTo(const BaseFormComponent& compareTo) const
+{
+    _DMESSAGE("");
+    MagicGroupList* src = const_cast<MagicGroupList*>(dynamic_cast<const MagicGroupList*>(&compareTo));
+    if (!src) return true;   // invalid polymorphic type
+
+    if (MagicGroupCount() != src->MagicGroupCount()) return true;   // mismatch in group counts
+    for (GroupEntry* entry = groupList; entry; entry = entry->next)
+    {
+        if (GroupEntry* sEntry = src->GetMagicGroup(entry->group))
+        {
+            if (entry->weight != sEntry->weight) return true;   // group weight differs
+        }
+        else return true;  // group not found in other list
+    }
+
+    return false;   // lists are identical
+}
+#ifndef OBLIVION  
+void MagicGroupList::BuildComponentFormRefList(BSSimpleList<TESForm*>* formRefs)
+{
+    // TODO - support properly
+    // ATM, though, this is never invoked because it would take an explicit call from the method of the parent form
+}
+void MagicGroupList::RemoveComponentFormRef(TESForm& referencedForm)
+{
+    MagicGroup* group = dynamic_cast<MagicGroup*>(&referencedForm);
+    if (group) RemoveMagicGroup(group);
+}
+bool MagicGroupList::ComponentFormRefRevisionsMatch(BSSimpleList<TESForm*>* checkinList)
+{
+    // TODO - support properly
+    // ATM, though, this is never invoked because it would take an explicit call from the method of the parent form
+    return true;
+}
+void MagicGroupList::GetRevisionUnmatchedComponentFormRefs(BSSimpleList<TESForm*>* checkinList, BSStringT& output)
+{
+    // TODO - support properly
+    // ATM, though, this is never invoked because it would take an explicit call from the method of the parent form
+}   
+void MagicGroupList::GetDispInfo(NMLVDISPINFO* info)
+{
+    if ((info->item.mask & LVIF_TEXT) == 0) return;  // only get display strings
+    GroupEntry* entry = (GroupEntry*)info->item.lParam;
+    if (!entry || !entry->group) 
+    {
+        // Invalid group entry
+        sprintf_s(info->item.pszText,info->item.cchTextMax,"[ERROR]");
+        return;
+    }
+    switch (info->item.iSubItem)
+    {
+    case 0: // Weight
+        sprintf_s(info->item.pszText,info->item.cchTextMax,"%i",entry->weight);
+        break;
+    case 1: // Group EditorID
+        sprintf_s(info->item.pszText,info->item.cchTextMax,"%s",entry->group->GetEditorID());
+        break;
+    case 2: // Group FormID
+        sprintf_s(info->item.pszText,info->item.cchTextMax,"%08X",entry->group->formID);
+        break;
+    }
+}
+int MagicGroupList::CompareListEntries(GroupEntry* entryA, GroupEntry* entryB, int sortparam)
+{
+    if (!entryA || !entryB || !entryA->group || !entryB->group) return 0;
+    int result = 0;
+    switch (sortparam < 0 ? - sortparam - 1 : sortparam - 1)
+    {
+    case 0: // weight
+        if (entryA->weight > entryB->weight) result = 1;
+        else if (entryA->weight < entryB->weight) result = -1;
+        else result = 0;
+        break;
+    case 1: // group editorID
+        result = strcmp(entryA->group->GetEditorID(), entryB->group->GetEditorID());
+        break;
+    case 2: // group formID
+        if (entryA->group->formID > entryB->group->formID) result = 1;
+        else if (entryA->group->formID < entryB->group->formID) result = -1;
+        else result = 0;
+        break;
+    }
+    if (sortparam < 0) return -result;
+    else return result;
+}
+void MagicGroupList::InitializeComponentDlg(HWND dialog)
+{
+    HWND ctl;
+    // Group list
+    ctl = GetDlgItem(dialog,IDC_MGLS_GROUPLIST);
+    TESListView::AllowRowSelection(ctl); // allow gridlines & row selection
+    ListView_SetExtendedListViewStyleEx(ctl,LVS_EX_INFOTIP,LVS_EX_INFOTIP);   // allow tooltips
+    TESListView::ClearColumns(ctl); // populate with columns
+    TESListView::InsertColumn(ctl,0,"Weight",50);
+    TESListView::InsertColumn(ctl,1,"Group",200);
+    TESListView::InsertColumn(ctl,2,"FormID",60);
+    SetWindowLong(ctl,GWL_USERDATA,1);  // initialize sort param
+    // Group Add List
+    ctl = GetDlgItem(dialog,IDC_MGLS_ADDGROUPSEL);
+    TESComboBox::PopulateWithForms(ctl,MagicGroup::extendedForm.FormType(),true,false);
+    if (ComboBox_GetCount(ctl) > 0) TESComboBox::SetCurSel(ctl,0);  // select first item
+}
+bool MagicGroupList::ComponentDlgMsgCallback(HWND dialog, UINT uMsg, WPARAM wParam, LPARAM lParam, LRESULT& result)
+{     
+    HWND ctl;
+    switch (uMsg)
+    {
+    case WM_COMMAND: 
+    {
+        if (HIWORD(wParam) != BN_CLICKED) break;    // handle only click commands
+        switch (LOWORD(wParam))  // switch on control id
+        {
+        case IDC_MGLS_ADDGROUP:  // Add group
+        {
+            _VMESSAGE("Add Group clicked");
+            if (void* curData = TESComboBox::GetCurSelData(GetDlgItem(dialog,IDC_MGLS_ADDGROUPSEL))) 
+            {      
+                ctl = GetDlgItem(dialog,IDC_MGLS_GROUPLIST);
+                GroupEntry* entry = GetMagicGroup((MagicGroup*)curData);
+                if (!entry)
+                {
+                    AddMagicGroup((MagicGroup*)curData,0);  // Add the group, with weight zero, to the list
+                    entry = GetMagicGroup((MagicGroup*)curData);                    
+                    TESListView::InsertItem(ctl,entry,0,0); // insert new item
+                    ListView_SortItems(ctl,CompareListEntries,GetWindowLong(ctl,GWL_USERDATA)); // resort items
+                }                
+                TESListView::ForceSelectItem(ctl,TESListView::LookupByData(ctl,entry)); // force select new entry
+            }
+            result = 0; return true;   // retval = false signals command handled  
+        }
+        case IDC_MGLS_REMOVEGROUP:  // Remove group
+        {
+            _VMESSAGE("Remove Group clicked");  
+            ctl = GetDlgItem(dialog,IDC_MGLS_GROUPLIST);
+            for (int i = ListView_GetNextItem(ctl,-1,LVNI_SELECTED); i >= 0; i = ListView_GetNextItem(ctl,i-1,LVNI_SELECTED))
+            {
+                GroupEntry* entry = (GroupEntry*)TESListView::GetItemData(ctl,i);
+                if (entry) RemoveMagicGroup(entry->group);
+                ListView_DeleteItem(ctl,i);
+            }
+            result = 0; return true;   // retval = false signals command handled  
+        }
+        }
+        break;
+    }
+    case WM_NOTIFY:
+    {
+        NMHDR* nmhdr = (NMHDR*)lParam;  // extract notify message info struct
+        if (nmhdr->idFrom != IDC_MGLS_GROUPLIST) break; // only handle notifications from group list
+        switch (nmhdr->code)
+        {
+        case LVN_GETDISPINFO:   // get display info
+            GetDispInfo((NMLVDISPINFO*)nmhdr);
+            return true;    // no retval
+        case LVN_COLUMNCLICK:   // click column header (sort)
+        {
+            int sortparam = ((NMLISTVIEW*)nmhdr)->iSubItem + 1;
+            if (sortparam == GetWindowLong(nmhdr->hwndFrom,GWL_USERDATA)) sortparam = -sortparam;
+            SetWindowLong(nmhdr->hwndFrom,GWL_USERDATA,sortparam);
+            ListView_SortItems(nmhdr->hwndFrom,CompareListEntries,sortparam); // resort items
+            return true;    // no retval
+        }
+        case LVN_ENDLABELEDIT: // enter item weight
+        {
+            NMLVDISPINFO* info = (NMLVDISPINFO*)nmhdr;
+            if (info->item.iItem < 0 || info->item.pszText == 0) break;
+            if (GroupEntry* entry = (GroupEntry*)info->item.lParam)
+            {
+                entry->weight = atoi(info->item.pszText);   // set weight from entered text
+
+            }
+            break;
+        }
+        }
+        break;
+    }    
+    }
+    return false;
+}                   
+bool MagicGroupList::IsComponentDlgValid(HWND dialog)
+{
+    return true;
+}
+void MagicGroupList::SetComponentInDlg(HWND dialog)
+{
+    HWND ctl;
+    // Group list
+    ctl = GetDlgItem(dialog,IDC_MGLS_GROUPLIST);
+    TESListView::ClearItems(ctl);
+    for (GroupEntry* entry = groupList; entry; entry = entry->next)
+    {
+        TESListView::InsertItem(ctl,entry,0,0);
+    }
+    ListView_SortItems(ctl,CompareListEntries,GetWindowLong(ctl,GWL_USERDATA)); // resort items
+}
+void MagicGroupList::GetComponentFromDlg(HWND dialog)
+{
+}
+void MagicGroupList::ComponentDlgCleanup(HWND dialog)
+{
+    // no cleanup
+}
+#endif
+// methods - serialization
+struct MagicGroupListMGLSChunk
+{// size 08
+    UInt32 /*00*/ groupFormID; 
+    SInt32 /*04*/ weight; 
+};
+void MagicGroupList::SaveComponent()
+{
+    MagicGroupListMGLSChunk mgls;
+    for (GroupEntry* entry = groupList; entry; entry = entry->next)
+    {
+        mgls.groupFormID = entry->group->formID;
+        mgls.weight = entry->weight;
+        TESForm::PutFormRecordChunkData(Swap32('MGLS'),&mgls,sizeof(mgls));
+    }
+}
+bool MagicGroupList::LoadComponent(MagicGroupList& groupList, TESFile& file)
+{
+    if (file.GetChunkType() != Swap32('MGLS')) return false;    // wrong chunk type
+    MagicGroupListMGLSChunk mgls;
+    file.GetChunkData(&mgls,sizeof(mgls));  // load MGLS chunk
+    TESFileFormats::ResolveModValue(mgls.groupFormID,file,TESFileFormats::kResolutionType_FormID);
+    groupList.AddMagicGroup((MagicGroup*)mgls.groupFormID,mgls.weight);
+    return true;
+}
+void MagicGroupList::LinkComponent()
+{
+    // assume group ptrs are actually formIDs
+    TESForm* parentForm = dynamic_cast<TESForm*>(this);
+    GroupEntry** lastPtr = &groupList;
+    for (GroupEntry* entry = groupList; entry;)
+    {
+        entry->group = dynamic_cast<MagicGroup*>(TESForm::LookupByFormID((UInt32)entry->group));
+        if (entry->group)
+        {
+            // update cross refs in CS
+            #ifndef OBLIVION
+            if (parentForm) entry->group->AddCrossReference(parentForm);
+            #endif
+            // resolved successfully, move to next entry
+            lastPtr = &entry->next;
+            entry = entry->next;
+        }
+        else
+        {
+            // invalid group formid, remove from list
+            *lastPtr = entry->next;
+            delete entry;
+            entry = *lastPtr;
+        }
+    }
+}
+void MagicGroupList::UnlinkComponent()
+{
+    // revert group ptrs to formIDs
+    TESForm* parentForm = dynamic_cast<TESForm*>(this);
+    for (GroupEntry* entry = groupList; entry; entry = entry->next)
+    {
+        #ifndef OBLIVION
+        if (parentForm) entry->group->RemoveCrossReference(parentForm);
+        #endif
+        if (entry->group) entry->group = (MagicGroup*)entry->group->formID;
+    }
+}
+// methods - list management
+void MagicGroupList::AddMagicGroup(MagicGroup* group, SInt32 weight)
+{
+    if (!group) return;
+    for (GroupEntry* entry = groupList; entry; entry = entry->next)
+    {
+        if (entry->group == group) {entry->weight = weight; return;} // group already in list
+    }
+    // group not found, add to head of list
+    GroupEntry* entry = new GroupEntry;
+    entry->group = group;
+    entry->weight = weight;
+    entry->next = groupList;
+    groupList = entry;    
+}
+void MagicGroupList::RemoveMagicGroup(MagicGroup* group)
+{
+    GroupEntry** lastPtr = &groupList;
+    for (GroupEntry* entry = groupList; entry; entry = entry->next)
+    {
+        if (entry->group == group) // group found in list
+        {
+            *lastPtr = entry->next; // link pointer from previous node to next node
+            delete entry;   // destroy node
+            return; // done
+        }
+        lastPtr = &entry->next;
+    }
+    // group not found
+}
+void MagicGroupList::ClearMagicGroups()
+{
+    // delete all group entries
+    for (GroupEntry* entry; entry = groupList;)
+    {
+        groupList = entry->next;
+        delete entry;
+    } 
+}
+bool MagicGroupList::SetMagicGroupWeight(MagicGroup* group, SInt32 weight)
+{
+    for (GroupEntry* entry = groupList; entry; entry = entry->next)
+    {
+        if (entry->group == group) {entry->weight = weight; return true;} // group found in list
+    }
+    return false; // group not found
+}
+MagicGroupList::GroupEntry* MagicGroupList::GetMagicGroup(MagicGroup* group)
+{
+    for (GroupEntry* entry = groupList; entry; entry = entry->next)
+    {
+        if (entry->group == group) return entry; // group found in list
+    }
+    return 0; // group not found
+}
+UInt32 MagicGroupList::MagicGroupCount() const
+{
+    UInt32 count = 0;
+    for (GroupEntry* entry = groupList; entry; entry = entry->next) count++;
+    return count;
+}
+// constructor, destructor
+MagicGroupList::MagicGroupList() : groupList(0) {}
+MagicGroupList::~MagicGroupList()
+{
+    ClearMagicGroups(); // clear group list
 }
 
 } // end namespace OBME

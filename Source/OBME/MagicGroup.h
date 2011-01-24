@@ -41,13 +41,12 @@ public:
     _LOCAL static TESForm*      CreateMagicGroup(); // creates a blank group
 
     // default instances of MagicGroup
-    static const UInt32         kBaseDefaultFormID  = 0x400;    // base formid for default instances
     _LOCAL static void          CreateDefaults();
     _LOCAL static void          ClearDefaults();
-    static MagicGroup*          g_SpellLimit;
-    static MagicGroup*          g_SummonCreatureLimit;
-    static MagicGroup*          g_BoundWeaponLimit;
-    static MagicGroup*          g_ShieldVFX;
+    static const UInt32 kFormID_SpellLimit          = 0x400;    static MagicGroup* g_SpellLimit;
+    static const UInt32 kFormID_SummonCreatureLimit = 0x401;    static MagicGroup* g_SummonCreatureLimit;
+    static const UInt32 kFormID_BoundWeaponLimit    = 0x402;    static MagicGroup* g_BoundWeaponLimit;
+    static const UInt32 kFormID_ShieldVFX           = 0x403;    static MagicGroup* g_ShieldVFX;
         // TODO - rest of default Magic Groups
 
     // CS dialog management
@@ -64,26 +63,31 @@ private:
 };
 
 class MagicGroupList : public BaseFormComponent
-{
+{// size 0C/0C
 public:
 
     struct GroupEntry
     {
         MagicGroup*     group;
         SInt32          weight;
+        GroupEntry*     next;
+        USEFORMHEAP // use form heap for class new/delete operations
     };
 
     // members
-    //     void**                       vtbl;
-    MEMBER BSSimpleList<GroupEntry*>    groupList;
+    //     /*00/00*/ void**         vtbl;
+    MEMBER /*04/04*/ GroupEntry*    groupList;
     
     // virtual method overrides:
     _LOCAL /*000/000*/ virtual void         InitializeComponent();
     _LOCAL /*004/004*/ virtual void         ClearComponentReferences();
     _LOCAL /*008/008*/ virtual void         CopyComponentFrom(const BaseFormComponent& source);
-    _LOCAL /*00C/00C*/ virtual bool         CompareComponentTo(const BaseFormComponent& compareTo);
+    _LOCAL /*00C/00C*/ virtual bool         CompareComponentTo(const BaseFormComponent& compareTo) const;
     #ifndef OBLIVION                           
+    _LOCAL /*---/010*/ virtual void         BuildComponentFormRefList(BSSimpleList<TESForm*>* formRefs);
     _LOCAL /*---/014*/ virtual void         RemoveComponentFormRef(TESForm& referencedForm);
+    _LOCAL /*---/018*/ virtual bool         ComponentFormRefRevisionsMatch(BSSimpleList<TESForm*>* checkinList);
+    _LOCAL /*---/01C*/ virtual void         GetRevisionUnmatchedComponentFormRefs(BSSimpleList<TESForm*>* checkinList, BSStringT& output);
     _LOCAL /*---/020*/ virtual bool         ComponentDlgMsgCallback(HWND dialog, UINT uMsg, WPARAM wParam, LPARAM lParam, LRESULT& result);                    
     _LOCAL /*---/024*/ virtual bool         IsComponentDlgValid(HWND dialog);
     _LOCAL /*---/028*/ virtual void         SetComponentInDlg(HWND dialog);
@@ -91,10 +95,30 @@ public:
     _LOCAL /*---/030*/ virtual void         ComponentDlgCleanup(HWND dialog);
     #endif
 
-    // methods
-    _LOCAL void                SaveComponent();
-    _LOCAL static void         LoadComponent(MagicGroupList& groupList, TESFile& file);
+    // methods - dialog management
+    #ifndef OBLIVION                                               
+    _LOCAL void                 InitializeComponentDlg(HWND dialog);
+    _LOCAL static void          GetDispInfo(NMLVDISPINFO* info);
+    _LOCAL static int CALLBACK  CompareListEntries(GroupEntry* entryA, GroupEntry* entryB, int sortparam);
+    #endif
 
+    // methods - serialization
+    _LOCAL void                 SaveComponent();
+    _LOCAL static bool          LoadComponent(MagicGroupList& groupList, TESFile& file);
+    _LOCAL void                 LinkComponent();
+    _LOCAL void                 UnlinkComponent();
+
+    // methods - list management
+    _LOCAL void                 AddMagicGroup(MagicGroup* group, SInt32 weight = 0);
+    _LOCAL void                 RemoveMagicGroup(MagicGroup* group);
+    _LOCAL void                 ClearMagicGroups();
+    _LOCAL bool                 SetMagicGroupWeight(MagicGroup* group, SInt32 weight = 0);
+    _LOCAL GroupEntry*          GetMagicGroup(MagicGroup* group);  
+    _LOCAL UInt32               MagicGroupCount() const;
+
+    // constructor, destructor
+    _LOCAL MagicGroupList();
+    _LOCAL ~MagicGroupList();
 };
 
 }   // end namespace OBME

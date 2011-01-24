@@ -30,9 +30,9 @@ extern "C" _declspec(dllexport) void* Initialize()
     // begin initialization  
     _MESSAGE("Initializing Submodule {%p} ...", hModule); 
 
+    OBME::MagicGroup::Initialize();
     OBME::EffectHandler::Initialize();
     OBME::EffectSetting::Initialize();
-    OBME::MagicGroup::Initialize();
     
     // initialization complete
     _DMESSAGE("Submodule initialization completed sucessfully");

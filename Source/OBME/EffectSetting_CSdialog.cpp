@@ -594,7 +594,7 @@ void EffectSetting::GetFormListDispInfo(void* displayInfo)
         sprintf_s(info->item.pszText,info->item.cchTextMax,"%08X",mgef->formID);
         break;
     case 2: // Name
-        sprintf_s(info->item.pszText,info->item.cchTextMax,"%s",mgef->name.c_str());
+        sprintf_s(info->item.pszText,info->item.cchTextMax,"%s",mgef->name.Size() ? mgef->name.c_str() : "");
         break;
     case 3: // mgefCode
         sprintf_s(info->item.pszText,info->item.cchTextMax,"%08X",mgef->mgefCode);

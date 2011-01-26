@@ -142,8 +142,6 @@ public:
     _LOCAL static bool      IsMgefCodeDynamic(UInt32 mgefCode); // returns true if code is dynamically assigned
     _LOCAL static UInt32    GetUnusedDynamicCode(); // checks table & returns an unused dynamic mgef code
     _LOCAL static UInt32    GetUnusedStaticCode(); // checks table & returns an unused static mgef code
-    _LOCAL static bool      ResolveModMgefCode(UInt32& mgefCode, TESFile& file); // does form-id like resolution on code from mod file          
-    _LOCAL static bool      ResolveSavedMgefCode(UInt32& mgefCode); //  does form-id like resolution on code from savegame
     _LOCAL void             ReplaceMgefCodeRef(UInt32 oldMgefCode, UInt32 newMgefCode); // replace all uses of old code with new code
 
     // methods: effect handler

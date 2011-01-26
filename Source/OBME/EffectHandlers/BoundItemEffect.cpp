@@ -17,9 +17,36 @@ namespace OBME {
 BoundItemMgefHandler::BoundItemMgefHandler(EffectSetting& effect) 
  : AssociatedItemMgefHandler(effect)
 {}
-// child Dialog for CS editing
+// serialization
+void BoundItemMgefHandler::LinkHandler()
+{
+    TESForm* assocItem = TESForm::LookupByFormID(parentEffect.mgefParam);
+    #ifndef OBLIVION        
+    if (assocItem)  assocItem->AddCrossReference(&parentEffect);   // add a cross ref for the associated form
+    #endif
+    if (!parentEffect.GetFlag(EffectSetting::kMgefFlagShift_UseArmor) && !parentEffect.GetFlag(EffectSetting::kMgefFlagShift_UseWeapon))
+    {
+        // Use* flags are not set properly, attempt to guess value from assoc item and/or defaults
+        if (assocItem && assocItem->GetFormType() == TESForm::kFormType_Weapon) // assoc item is a weapon
+            parentEffect.SetFlag(EffectSetting::kMgefFlagShift_UseWeapon,true);
+        else if (assocItem && assocItem->GetFormType() == TESForm::kFormType_Armor) // assoc item is armor
+            parentEffect.SetFlag(EffectSetting::kMgefFlagShift_UseArmor,true);
+        else if (EffectSetting::GetDefaultMgefFlags(parentEffect.mgefCode) & EffectSetting::kMgefFlag_UseWeapon) // default flag is 'Use Weapon'
+            parentEffect.SetFlag(EffectSetting::kMgefFlagShift_UseWeapon,true);
+        else // default flag is 'Use Armor' OR there is no default flag setting
+            parentEffect.SetFlag(EffectSetting::kMgefFlagShift_UseArmor,true);
+        // check vanilla bound item group & switch groups if necessary
+        if (parentEffect.MagicGroupList::GetMagicGroup(MagicGroup::g_BoundWeaponLimit) && parentEffect.GetFlag(EffectSetting::kMgefFlagShift_UseArmor))
+        {
+            // TODO - implement switch over armor slot to choose appripriate limit
+            parentEffect.RemoveMagicGroup(MagicGroup::g_BoundWeaponLimit);
+            parentEffect.AddMagicGroup(MagicGroup::g_BoundHelmLimit,1);
+        }
+    }
+}
 #ifndef OBLIVION
-INT BoundItemMgefHandler::DialogTemplateID() { return IDD_SMBO; }   // default handler has no dialog
+// child Dialog for CS editing
+INT BoundItemMgefHandler::DialogTemplateID() { return IDD_MGEF_SMBO; }   // default handler has no dialog
 void BoundItemMgefHandler::InitializeDialog(HWND dialog)
 {
     HWND ctl = 0;

@@ -345,6 +345,14 @@
 				>
 			</File>
 			<File
+				RelativePath=".\EffectHandlers\DispelEffect.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\EffectHandlers\DispelEffect.h"
+				>
+			</File>
+			<File
 				RelativePath=".\EffectHandlers\EffectHandler.cpp"
 				>
 			</File>
@@ -358,6 +366,14 @@
 			</File>
 			<File
 				RelativePath=".\EffectHandlers\EffectHandler.rc.h"
+				>
+			</File>
+			<File
+				RelativePath=".\EffectHandlers\ScriptEffect.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\EffectHandlers\ScriptEffect.h"
 				>
 			</File>
 			<File

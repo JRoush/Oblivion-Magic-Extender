@@ -71,7 +71,7 @@ void AssociatedItemMgefHandler::RemoveFormReference(TESForm& form)
     if (parentEffect.mgefParam == form.formID) parentEffect.mgefParam = 0;
 }
 // child Dialog in CS
-INT AssociatedItemMgefHandler::DialogTemplateID() { return IDD_SUMN; }
+INT AssociatedItemMgefHandler::DialogTemplateID() { return IDD_MGEF_SUMN; }
 void AssociatedItemMgefHandler::SetInDialog(HWND dialog)
 {
     HWND ctl = 0;

@@ -6,6 +6,8 @@
 #include "OBME/EffectHandlers/AssociatedItemEffect.h"
 #include "OBME/EffectHandlers/SummonCreatureEffect.h"
 #include "OBME/EffectHandlers/BoundItemEffect.h"
+#include "OBME/EffectHandlers/ScriptEffect.h"
+#include "OBME/EffectHandlers/DispelEffect.h"
 
 #include <map>
 
@@ -48,7 +50,7 @@ public:
     {
         // don't put output statements here, as the output log may not yet be initialized   
         insert<GenericMgefHandler<EffectHandler::kACTV>,GenericEfitHandler<EffectHandler::kACTV>,ActiveEffect>(EffectHandler::kACTV,"< Default >");
-        insert<GenericMgefHandler<EffectHandler::kSEFF>,GenericEfitHandler<EffectHandler::kSEFF>,ActiveEffect>(EffectHandler::kSEFF,"Scripted");
+        insert<ScriptMgefHandler,ScriptEfitHandler,ScriptEffect>(EffectHandler::kSEFF,"Scripted");
         insert<GenericMgefHandler<EffectHandler::kSUDG>,GenericEfitHandler<EffectHandler::kSUDG>,ActiveEffect>(EffectHandler::kSUDG,"Sun Damage");
         insert<GenericMgefHandler<EffectHandler::kDEMO>,GenericEfitHandler<EffectHandler::kDEMO>,ActiveEffect>(EffectHandler::kDEMO,"Demoralize");
         insert<GenericMgefHandler<EffectHandler::kCOCR>,GenericEfitHandler<EffectHandler::kCOCR>,ActiveEffect>(EffectHandler::kCOCR,"Command Creature");
@@ -57,7 +59,7 @@ public:
         insert<GenericMgefHandler<EffectHandler::kTURN>,GenericEfitHandler<EffectHandler::kTURN>,ActiveEffect>(EffectHandler::kTURN,"Turn Undead");
         insert<GenericMgefHandler<EffectHandler::kVAMP>,GenericEfitHandler<EffectHandler::kVAMP>,ActiveEffect>(EffectHandler::kVAMP,"Vampirism");
         insert<GenericMgefHandler<EffectHandler::kLGHT>,GenericEfitHandler<EffectHandler::kLGHT>,ActiveEffect>(EffectHandler::kLGHT,"Light");
-        insert<GenericMgefHandler<EffectHandler::kDSPL>,GenericEfitHandler<EffectHandler::kDSPL>,ActiveEffect>(EffectHandler::kDSPL,"Dispel");
+        insert<DispelMgefHandler,DispelEfitHandler,DispelEffect>(EffectHandler::kDSPL,"Dispel");
         insert<GenericMgefHandler<EffectHandler::kCURE>,GenericEfitHandler<EffectHandler::kCURE>,ActiveEffect>(EffectHandler::kCURE,"Cure");
         insert<GenericMgefHandler<EffectHandler::kDIAR>,GenericEfitHandler<EffectHandler::kDIAR>,ActiveEffect>(EffectHandler::kDIAR,"Disintegrate Armor");
         insert<GenericMgefHandler<EffectHandler::kDIWE>,GenericEfitHandler<EffectHandler::kDIWE>,ActiveEffect>(EffectHandler::kDIWE,"Disintegrate Weapon");

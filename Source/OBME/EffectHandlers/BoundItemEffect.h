@@ -21,8 +21,10 @@ public:
     // handler code
     virtual UInt32              HandlerCode() const {return EffectHandler::kSMBO;}
 
+    // serialization
+    virtual void                LinkHandler();  // overriden to allow correction of flag values
+    #ifndef OBLIVION    
     // child Dialog for CS editing
-    #ifndef OBLIVION
     virtual INT                 DialogTemplateID();
     virtual void                InitializeDialog(HWND dialog);
     virtual bool                DialogMessageCallback(HWND dialog, UINT uMsg, WPARAM wParam, LPARAM lParam, LRESULT& result);

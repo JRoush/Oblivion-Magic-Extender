@@ -4,6 +4,8 @@
 
 #include "API/TESFiles/TESFile.h"
 #include "API/CSDialogs/TESDialog.h"
+#include "API/Actors/ActorValues.h"
+#include "Components/TESFileFormats.h"
 
 // global method for returning small enumerations as booleans
 inline bool BoolEx(UInt8 value) {return *(bool*)&value;}
@@ -22,6 +24,7 @@ ValueModifierMgefHandler::ValueModifierMgefHandler(EffectSetting& effect)
 // serialization
 bool ValueModifierMgefHandler::LoadHandlerChunk(TESFile& file, UInt32 RecordVersion)
 {
+    if (file.currentChunk.chunkLength != kEHNDChunkSize) return false;  // wrong chunk size
     file.GetChunkData(&magIsPercentage,kEHNDChunkSize);
     return true;
 }
@@ -31,11 +34,19 @@ void ValueModifierMgefHandler::SaveHandlerChunk()
 }
 void ValueModifierMgefHandler::LinkHandler()
 {
-    // TODO - lookup AV token and register reference in CS
+    // add cross reference for mgefParam
+    #ifndef OBLIVION
+    if (TESForm* form = TESFileFormats::GetFormFromCode(parentEffect.mgefParam,TESFileFormats::kResType_ActorValue)) 
+        form->AddCrossReference(&parentEffect);
+    #endif
 }
 void ValueModifierMgefHandler::UnlinkHandler() 
 {
-    // TODO - lookup AV token and unregister reference in CS
+    // remove cross reference for mgefParam
+    #ifndef OBLIVION
+    if (TESForm* form = TESFileFormats::GetFormFromCode(parentEffect.mgefParam,TESFileFormats::kResType_ActorValue)) 
+        form->RemoveCrossReference(&parentEffect);
+    #endif
 }
 // copy/compare
 void ValueModifierMgefHandler::CopyFrom(const MgefHandler& copyFrom)
@@ -43,7 +54,13 @@ void ValueModifierMgefHandler::CopyFrom(const MgefHandler& copyFrom)
     const ValueModifierMgefHandler* src = dynamic_cast<const ValueModifierMgefHandler*>(&copyFrom);
     if (!src) return; // wrong polymorphic type
 
-    // TODO - CrossRef incr/decr for mgefParam AV token
+    // incr/decr cross refs for mgefParam
+    #ifndef OBLIVION
+    if (TESForm* form = TESFileFormats::GetFormFromCode(parentEffect.mgefParam,TESFileFormats::kResType_ActorValue)) 
+        form->RemoveCrossReference(&parentEffect);
+    if (TESForm* form = TESFileFormats::GetFormFromCode(src->parentEffect.mgefParam,TESFileFormats::kResType_ActorValue)) 
+        form->AddCrossReference(&parentEffect);
+    #endif
 
     magIsPercentage = src->magIsPercentage;
     percentageAVPart = src->percentageAVPart;
@@ -52,40 +69,29 @@ void ValueModifierMgefHandler::CopyFrom(const MgefHandler& copyFrom)
 }
 bool ValueModifierMgefHandler::CompareTo(const MgefHandler& compareTo)
 {   
-    // define failure codes - all of which must evaluate to boolean true
-    enum
-    {
-        kCompareSuccess         = 0,
-        kCompareFail_General    = 1,
-        kCompareFail_Base,
-        kCompareFail_Polymorphic,
-        kCompareFail_MagIsPerc,
-        kCompareFail_PercAVPart,
-        kCompareFail_AVPart,
-        kCompareFail_DetrimentalLimit,
-    };
-
-    if (MgefHandler::CompareTo(compareTo)) return BoolEx(kCompareFail_Base);
+    if (MgefHandler::CompareTo(compareTo)) return BoolEx(02);
     const ValueModifierMgefHandler* src = dynamic_cast<const ValueModifierMgefHandler*>(&compareTo);
-    if (!src) return BoolEx(kCompareFail_Polymorphic); // wrong polymorphic type
+    if (!src) return BoolEx(04); // wrong polymorphic type
 
     // compare members
-    if (magIsPercentage != src->magIsPercentage) return BoolEx(kCompareFail_MagIsPerc);
-    if (percentageAVPart != src->percentageAVPart) return BoolEx(kCompareFail_PercAVPart);
-    if (avPart != src->avPart) return BoolEx(kCompareFail_AVPart);
-    if (detrimentalLimit != src->detrimentalLimit) return BoolEx(kCompareFail_DetrimentalLimit);
+    if (magIsPercentage != src->magIsPercentage) return BoolEx(10);
+    if (percentageAVPart != src->percentageAVPart) return BoolEx(20);
+    if (avPart != src->avPart) return BoolEx(30);
+    if (detrimentalLimit != src->detrimentalLimit) return BoolEx(40);
 
     // handlers are identical
-    return BoolEx(kCompareSuccess);
+    return false;
 }
 #ifndef OBLIVION
 // reference management in CS
 void ValueModifierMgefHandler::RemoveFormReference(TESForm& form) 
 {
-    // TODO - clear mgefParam if it is an AV token
+    // clear mgefParam if it references AV token form
+    if (&form == TESFileFormats::GetFormFromCode(parentEffect.mgefParam,TESFileFormats::kResType_ActorValue)) 
+        parentEffect.mgefParam = ActorValues::kActorVal__UBOUND;
 }
 // child Dialog in CS
-INT ValueModifierMgefHandler::DialogTemplateID() { return IDD_MDAV; }
+INT ValueModifierMgefHandler::DialogTemplateID() { return IDD_MGEF_MDAV; }
 void ValueModifierMgefHandler::InitializeDialog(HWND dialog)
 {
     HWND ctl = 0;

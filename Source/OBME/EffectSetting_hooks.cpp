@@ -208,7 +208,7 @@ void _declspec(naked) TESDataHandler_LoadMgef_Hndl(void)
             // resolve code
             TESFileFormats::ResolveModValue(mgefCode,*file,TESFileFormats::kResType_MgefCode);
             // search for already created effect with this code
-            EffectSetting* mgef = dynamic_cast<EffectSetting*>(form);
+            ::EffectSetting* mgef = dynamic_cast<::EffectSetting*>(form);
             if (mgef && mgef->mgefCode == mgefCode)
             {
                 // effect w/ same formid & mgefcode was found by datahandler
@@ -216,9 +216,9 @@ void _declspec(naked) TESDataHandler_LoadMgef_Hndl(void)
             else 
             {
                 if (form)
-                {
+                {                    
                     // formid belongs to an existing object that is not MGEF or has a different effect code
-                    _ERROR("Cannot load MGEF record into existing %s form '%s' (%08X)",
+                    _ERROR("Cannot load MGEF record into existing %s ",
                         TESForm::GetFormTypeName(form->GetFormType()),form->GetEditorID(),form->formID);
                 }
                 // lookup in table

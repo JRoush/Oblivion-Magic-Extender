@@ -206,7 +206,7 @@ void _declspec(naked) TESDataHandler_LoadMgef_Hndl(void)
         if (EffectSetting::IsMgefCodeValid(mgefCode))
         {
             // resolve code
-            TESFileFormats::ResolveModValue(mgefCode,*file,TESFileFormats::kResolutionType_MgefCode);
+            TESFileFormats::ResolveModValue(mgefCode,*file,TESFileFormats::kResType_MgefCode);
             // search for already created effect with this code
             EffectSetting* mgef = dynamic_cast<EffectSetting*>(form);
             if (mgef && mgef->mgefCode == mgefCode)

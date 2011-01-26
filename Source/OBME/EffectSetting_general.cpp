@@ -4,7 +4,11 @@
 #include "OBME/Magic.h"
 #include "OBME/EffectHandlers/EffectHandler.h"
 #include "API/Magic/EffectItem.h" // TODO - replace with OBME/EffectItem.h
-#include "OBME/EffectHandlers/ValueModifierEffect.h"
+#include "OBME/EffectHandlers/ValueModifierEffect.h"   
+#include "OBME/EffectHandlers/SummonCreatureEffect.h" 
+#include "OBME/EffectHandlers/BoundItemEffect.h"
+#include "OBME/EffectHandlers/ScriptEffect.h"
+#include "OBME/EffectHandlers/DispelEffect.h"
 
 #include "API/TES/TESDataHandler.h"
 #include "API/TESFiles/TESFile.h"
@@ -64,6 +68,179 @@ struct EffectSettingDatxChunk   // DATX chunk, deprecated as of v1.beta4 but kep
 };
 
 // virtual methods - TESFormIDListView
+void ConvertV1HandlerData(EffectSetting& mgef, TESFile& file, UInt32 version, UInt32 hParamA, UInt32 hParamB, UInt32 hParamFlags, UInt32 hUsesFlags)
+{   
+    /* Converts handler information for the four altered handlers MDAV, SMAC/SMBO, SEFF, DSPL . Needs to manage 
+        -   mgefParam (for MDAV/SMAC/SMBO)
+        -   Uses* mgefFlags (for MDAV/SMBO/SMAC)
+        -   Detrimental flag (for MDAV)
+        -   MagicGroups (for SMAC/SMBO)
+        -   any relevant handler members
+    */
+    if (version == VERSION_VANILLA_OBLIVION || version >= MAKE_VERSION(2,0,0,0)) return; // this function is for v1 record only
+
+    // MDAV
+    if (ValueModifierMgefHandler* mdav = dynamic_cast<ValueModifierMgefHandler*>(&mgef.GetHandler()))
+    {
+        if (version < MAKE_VERSION(1,0,4,0)) // v1.beta1 - v1.beta3
+        {            
+            // Actor Value
+            TESFileFormats::ResolveModValue(hParamA,file,TESFileFormats::kResType_ActorValue);            
+            // UseSkill|UseAttribute|UseAV flags
+            if (hParamA && hParamA != ActorValues::kActorVal_Armorer && hParamA != ActorValues::kActorVal__NONE) // AV is not Strength, Armorer, or Invalid
+            {
+                mgef.mgefParam = hParamA;    // a particular AV was specified, use it
+                mgef.SetFlag(EffectSetting::kMgefFlagShift_UseActorValue,true);
+            }
+            else if (hUsesFlags & EffectSetting::kMgefFlag_UseAttribute) 
+                mgef.SetFlag(EffectSetting::kMgefFlagShift_UseAttribute,true);
+            else if (hUsesFlags & EffectSetting::kMgefFlag_UseSkill) 
+                mgef.SetFlag(EffectSetting::kMgefFlagShift_UseSkill,true);
+            else 
+            {
+                mgef.mgefParam = hParamA;   // no good guess as to the original intent, default to specific AV
+                mgef.SetFlag(EffectSetting::kMgefFlagShift_UseActorValue,true); 
+            }
+            // detrimental
+            mgef.SetFlag(EffectSetting::kMgefFlagShift_Detrimental, hParamFlags & EffectSetting::kMgefFlag_Detrimental);
+            // AV Part - use default AV parts, as v1.b1 had no override for this and v1.beta2-v1.beta3 use conflicting formats
+            if (mgef.GetFlag(EffectSetting::kMgefFlagShift_Recovers)) mdav->avPart = ValueModifierMgefHandler::kAVPart_MaxSpecial;
+            else mdav->avPart = ValueModifierMgefHandler::kAVPart_Damage;
+            // issue ambiguity warning
+            if (version >= MAKE_VERSION(1,0,2,0))
+            {
+                _WARNING("%s was saved with OBME v1.beta2 OR v1.beta3.  Because of the ambiguity, OBME is unabled to "
+                "properly load the following data specific to the ValueModifier handler: AV Part, secondary AV selections", mgef.GetDebugDescEx());
+            }
+        }
+        else // v1.beta4 - v1.0
+        {
+            TESFileFormats::ResolveModValue(hParamA,file,TESFileFormats::kResType_ActorValue); // 'low'/default AV
+            TESFileFormats::ResolveModValue(hParamB,file,TESFileFormats::kResType_ActorValue); // 'high' AV
+            // Uses Flags, AV code
+            if (hParamA == ActorValues::kActorVal_Strength && hParamB == ActorValues::kActorVal_Luck) 
+                mgef.SetFlag(EffectSetting::kMgefFlagShift_UseAttribute,true);
+            else if (hParamA == ActorValues::kActorVal_Armorer && hParamB == ActorValues::kActorVal_Speechcraft) 
+                mgef.SetFlag(EffectSetting::kMgefFlagShift_UseSkill,true);
+            else 
+            {
+                mgef.mgefParam = hParamA;
+                mgef.SetFlag(EffectSetting::kMgefFlagShift_UseActorValue,true);
+                // issue warning for discarding 'upper' AV
+                if (hParamB != ActorValues::kActorVal__MAX) _WARNING("%s was saved using the v1.0 format.  OBME will discard the following "
+                        "data specific to the ValueModifier handler: secondary AV selection", mgef.GetDebugDescEx());
+            }
+            // avPart - encoded in Param flags C & D
+            mdav->avPart = (hParamFlags >> (EffectSetting::kMgefFlagShift__ParamFlagC-0x20)) & 0x3;
+            if (hParamFlags & EffectSetting::kMgefObmeFlag__ParamFlagB) 
+            {
+                if (mdav->avPart == ValueModifierMgefHandler::kAVPart_Max)  mdav->avPart = ValueModifierMgefHandler::kAVPart_MaxSpecial; // uses max special
+                else _WARNING("%s was saved using the v1.0 format.  OBME will discard the following "
+                        "data specific to the ValueModifier handler: 'Ability Special' flag for non-Max modifier", mgef.GetDebugDescEx());
+            }
+            // detrimental
+            if (hParamFlags & EffectSetting::kMgefFlag_Detrimental) mgef.SetFlag(EffectSetting::kMgefFlagShift_Detrimental,true);
+        } 
+    }
+
+    // SMAC/SMBO
+    else if (dynamic_cast<AssociatedItemMgefHandler*>(&mgef.GetHandler()))
+    {
+        // summoned formID
+        TESFileFormats::ResolveModValue(hParamA,file,TESFileFormats::kResType_FormID);
+        mgef.mgefParam = hParamA;
+        // uses vanilla limit
+        bool useVanillaLim = (version < MAKE_VERSION(1,0,2,0)) ? (hParamFlags & EffectSetting::kMgefObmeFlag__ParamFlagA) // v1.beta1
+                                                                : (hParamFlags & EffectSetting::kMgefObmeFlag__ParamFlagC); // v1.beta2-v1.0        
+        // SMAC
+        if (dynamic_cast<SummonCreatureMgefHandler*>(&mgef.GetHandler()))
+        {            
+            mgef.SetFlag(EffectSetting::kMgefFlagShift_UseActor,true); // set 'Use Actor' flag
+            // limit
+            if (useVanillaLim) mgef.MagicGroupList::AddMagicGroup((MagicGroup*)MagicGroup::g_SummonCreatureLimit->formID,1); // add vanilla limit
+            else
+            {
+                mgef.MagicGroupList::RemoveMagicGroup((MagicGroup*)MagicGroup::g_SummonCreatureLimit->formID); // remove vanilla limit
+                TESFileFormats::ResolveModValue(hParamB,file,TESFileFormats::kResType_FormID);  // resolve limit global formid
+                mgef.MagicGroupList::AddMagicGroup((MagicGroup*)hParamB,1); // add custom limit           
+                //  MagicGroup::LinkComponent() will resolve into a ptr to global & create a new group for the limit (or use an existing group that matches)
+            }
+        }   
+        // SMBO
+        else if (dynamic_cast<BoundItemMgefHandler*>(&mgef.GetHandler()))
+        {
+            UInt32 vanillaLim; SInt32 vanillaLimWeight;
+            EffectSetting::GetDefaultMagicGroup(mgef.mgefCode,vanillaLim,vanillaLimWeight);
+            if (useVanillaLim && vanillaLim && !hParamA)
+            {
+                // vanilla effect w/ empty summon field - use hardcoded vanilla limit to determine proper flags
+                mgef.MagicGroupList::AddMagicGroup((MagicGroup*)vanillaLim,vanillaLimWeight); // add vanilla limit
+                if (vanillaLim == MagicGroup::kFormID_BoundWeaponLimit) mgef.SetFlag(EffectSetting::kMgefFlagShift_UseWeapon, true);
+                else mgef.SetFlag(EffectSetting::kMgefFlagShift_UseArmor, true);
+            }
+            else if (useVanillaLim)
+            {
+                // use vanilla limit - need to determine proper group based on summoned form, if any
+                if (vanillaLim) mgef.MagicGroupList::RemoveMagicGroup((MagicGroup*)vanillaLim); // remove hardcoded vanilla limit
+                mgef.MagicGroupList::AddMagicGroup((MagicGroup*)MagicGroup::kFormID_BoundWeaponLimit,1); // add bound weap lim as placeholder group
+                // BoundItemMgefHandler::LinkHandler() will change vanilla limit group and/or set the UseWeapon/UseArmor based on the
+                // associated item & default settings.
+            }
+            else 
+            {
+                if (vanillaLim) mgef.MagicGroupList::RemoveMagicGroup((MagicGroup*)vanillaLim); // remove hardcoded vanilla limit
+                TESFileFormats::ResolveModValue(hParamB,file,TESFileFormats::kResType_FormID);  // resolve limit global formid
+                mgef.MagicGroupList::AddMagicGroup((MagicGroup*)hParamB,1); // add custom limit           
+                //  MagicGroup::LinkComponent() will resolve into a ptr to global & create a new group for the limit (or use an existing group that matches)
+            }
+        }
+        // warning for 'UseMagnitudeScaling' flag
+        if (hParamFlags & (version < MAKE_VERSION(1,0,2,0) ? EffectSetting::kMgefObmeFlag__ParamFlagB : EffectSetting::kMgefObmeFlag__ParamFlagA))
+        {
+            _WARNING("%s uses the 'Summoned Form is Scaled with Magnitude' flag, which will be discarded because is no longer supported."
+                , mgef.GetDebugDescEx());
+        }
+    }
+
+    // SEFF
+    else if (ScriptMgefHandler* seff = dynamic_cast<ScriptMgefHandler*>(&mgef.GetHandler()))
+    {
+        // script formID
+        TESFileFormats::ResolveModValue(hParamA,file,TESFileFormats::kResType_FormID);
+        seff->scriptFormID = hParamA;
+          // uses 'SEFF Always Applies' behavior
+        seff->useSEFFAlwaysApplies = (hParamFlags & EffectSetting::kMgefObmeFlag__ParamFlagA); 
+        // determine EffectItem::ActorValue field resolution for compatibility
+        if (version >= MAKE_VERSION(1,0,2,0))
+        {
+            if (hParamFlags & EffectSetting::kMgefObmeFlag__ParamFlagC) seff->efitAVResType = TESFileFormats::kResType_FormID;
+            else if (hParamFlags & EffectSetting::kMgefObmeFlag__ParamFlagD) seff->efitAVResType = TESFileFormats::kResType_MgefCode;
+            else seff->efitAVResType = TESFileFormats::kResType_None;
+        }
+    }  
+
+    // DSPL
+    else if (DispelMgefHandler* dspl = dynamic_cast<DispelMgefHandler*>(&mgef.GetHandler()))
+    {
+        if (version >= MAKE_VERSION(1,0,2,0))   // v1.beta2+
+        {
+            // mgefCode / ehCode
+            if (hParamFlags & EffectSetting::kMgefObmeFlag__ParamFlagB) dspl->ehCode = hParamA; // ehCode
+            else
+            {
+                TESFileFormats::ResolveModValue(hParamA,file,TESFileFormats::kResType_MgefCode);
+                dspl->mgefCode = hParamA; // mgefCode
+            }
+            // magic type & cast type
+            dspl->magicTypes = (hParamB & 0x1F) | ((hParamB >> 2) & 0x180); // extract magic type from ParamB bitmask
+            dspl->castTypes = (hParamB >> 5) & 0xF;
+            // behavior flags
+            dspl->atomicDispel = (hParamFlags & EffectSetting::kMgefObmeFlag__ParamFlagA);
+            dspl->distributeMag = (hParamFlags & EffectSetting::kMgefObmeFlag__ParamFlagC);
+            dspl->atomicItems = (hParamFlags & EffectSetting::kMgefObmeFlag__ParamFlagD);
+        }
+    }
+}
 bool EffectSetting::LoadForm(TESFile& file)
 {
     /*
@@ -86,17 +263,18 @@ bool EffectSetting::LoadForm(TESFile& file)
     enum EffectSettingChunks
     {
         kMgefChunk_Edid     = 0x00000001,
-        kMgefChunk_Eddx     = 0x00000002,
+        kMgefChunk_Eddx     = 0x00000002, // v1.beta2+
         kMgefChunk_Full     = 0x00000004,
         kMgefChunk_Desc     = 0x00000008,
         kMgefChunk_Icon     = 0x00000010,
         kMgefChunk_Modl     = 0x00000020,
         kMgefChunk_Data     = 0x00000040,
-        kMgefChunk_Datx     = 0x00000080, // deprecated since v1 beta4
+        kMgefChunk_Datx     = 0x00000080, // v1.beta2 - v1.beta3
         kMgefChunk_Esce     = 0x00000100,
-        kMgefChunk_Obme     = 0x00000200,
-        kMgefChunk_Ehnd     = 0x00000400,
-        kMgefChunk_Mgls     = 0x00000800,
+        kMgefChunk_Obme     = 0x00000200, // v1.beta4+
+        kMgefChunk_Ehnd     = 0x00000400, // v2.beta1+
+        kMgefChunk_Mgls     = 0x00000800, // v2.beta1+
+        kMgefChunk_DataEx   = 0x00001000, // v1.beta1
     }; 
     UInt32 loadFlags = 0;    // no chunks loaded
     UInt32 loadVersion = VERSION_VANILLA_OBLIVION;
@@ -198,7 +376,7 @@ bool EffectSetting::LoadForm(TESFile& file)
                 memcpy(&data,buffer,sizeof(data));
                 memcpy(&datx,buffer+sizeof(data),sizeof(datx));
                 delete buffer;
-                loadFlags |= kMgefChunk_Data | kMgefChunk_Datx;
+                loadFlags |= kMgefChunk_Data | kMgefChunk_Datx | kMgefChunk_DataEx;
                 _VMESSAGE("DATA chunk (extended): flags {%08X}, handler {%08X}",data.mgefFlags,datx.effectHandler);
             }
             break;
@@ -249,6 +427,7 @@ bool EffectSetting::LoadForm(TESFile& file)
 
     // process record version
     if (loadFlags & kMgefChunk_Obme) loadVersion = obme.obmeRecordVersion;
+    else if (loadFlags & kMgefChunk_DataEx) loadVersion = MAKE_VERSION(1,0,1,0); // v1.beta1
     else if (loadFlags & kMgefChunk_Datx) loadVersion = VERSION_OBME_LASTUNVERSIONED;  // assume last "unversioned" version
     else loadVersion = VERSION_VANILLA_OBLIVION;
     _DMESSAGE("Final Record Version %08X",loadVersion);
@@ -270,15 +449,15 @@ bool EffectSetting::LoadForm(TESFile& file)
     if (loadFlags & kMgefChunk_Data)
     {
         // resolve simple references
-        TESFileFormats::ResolveModValue(data.light,file,TESFileFormats::kResolutionType_FormID); // Light
-        TESFileFormats::ResolveModValue(data.effectShader,file,TESFileFormats::kResolutionType_FormID); // EffectShader
-        TESFileFormats::ResolveModValue(data.enchantShader,file,TESFileFormats::kResolutionType_FormID); // EnchantmentShader
-        TESFileFormats::ResolveModValue(data.castingSound,file,TESFileFormats::kResolutionType_FormID); // Cast Sound
-        TESFileFormats::ResolveModValue(data.boltSound,file,TESFileFormats::kResolutionType_FormID); // Bolt Sound
-        TESFileFormats::ResolveModValue(data.hitSound,file,TESFileFormats::kResolutionType_FormID); // Hit Sound
-        TESFileFormats::ResolveModValue(data.areaSound,file,TESFileFormats::kResolutionType_FormID); // Area Sound
-        TESFileFormats::ResolveModValue(data.resistAV,file,TESFileFormats::kResolutionType_ActorValue); // Resistance AV (for AddActorValues)
-        TESFileFormats::ResolveModValue(data.school,file,TESFileFormats::kResolutionType_FormID); // School (for extended school types)
+        TESFileFormats::ResolveModValue(data.light,file,TESFileFormats::kResType_FormID); // Light
+        TESFileFormats::ResolveModValue(data.effectShader,file,TESFileFormats::kResType_FormID); // EffectShader
+        TESFileFormats::ResolveModValue(data.enchantShader,file,TESFileFormats::kResType_FormID); // EnchantmentShader
+        TESFileFormats::ResolveModValue(data.castingSound,file,TESFileFormats::kResType_FormID); // Cast Sound
+        TESFileFormats::ResolveModValue(data.boltSound,file,TESFileFormats::kResType_FormID); // Bolt Sound
+        TESFileFormats::ResolveModValue(data.hitSound,file,TESFileFormats::kResType_FormID); // Hit Sound
+        TESFileFormats::ResolveModValue(data.areaSound,file,TESFileFormats::kResType_FormID); // Area Sound
+        TESFileFormats::ResolveModValue(data.resistAV,file,TESFileFormats::kResType_ActorValue); // Resistance AV (for AddActorValues)
+        TESFileFormats::ResolveModValue(data.school,file,TESFileFormats::kResType_FormID); // School (for extended school types)
         // copy DATA onto mgef
         memcpy(&mgefFlags,&data,sizeof(data));
         SetResistAV(data.resistAV); // standardize resistance value
@@ -293,7 +472,8 @@ bool EffectSetting::LoadForm(TESFile& file)
         {
             mgefFlags = data.mgefFlags & ~EffectSetting::kMgefFlag_PCHasEffect;
             _DMESSAGE("MgefFlags trimmed to %08X",mgefFlags);
-            mgefObmeFlags = datx.mgefFlagOverrides & ~0x00190004; // v1 'Param' flags not stored in obmeFlags field 
+            mgefObmeFlags = (loadVersion < MAKE_VERSION(1,0,4,0)) ? datx.mgefFlagOverrides : obme.mgefObmeFlags;
+            mgefObmeFlags &= ~0x00190004; // v1 'Param' flags not stored in obmeFlags field 
         }
         else
         {
@@ -301,18 +481,24 @@ bool EffectSetting::LoadForm(TESFile& file)
             mgefObmeFlags = obme.mgefObmeFlags;
         }
         // magic groups
-        if (loadVersion >= MAKE_VERSION(2,0,0,0))
+        MagicGroupList::ClearMagicGroups();
+        if (loadVersion < MAKE_VERSION(2,0,0,0)) // vanilla - v1.0
         {
-            MagicGroupList::ClearMagicGroups();
-            groupList = mgls.groupList; // transfer group list from tenporary object to this mgef
-            mgls.groupList = 0; // clear group list so that it doesn't get destroyed when temporary object leaves scope
+            UInt32 defGroup;    SInt32 defWeight;
+            GetDefaultMagicGroup(mgefCode,defGroup,defWeight);
+            MagicGroupList::AddMagicGroup((MagicGroup*)defGroup,defWeight); // add default group, if any
+        }
+        else // v2+
+        {
+            groupList = mgls.groupList; // transfer group list from temporary object to this mgef
+            mgls.groupList = 0; // clear temporary object group list so that it doesn't get destroyed when object leaves scope
         }
         // counter effects
         if (numCounters != esce.count) _WARNING("DATA chunk expects %i counter effects, but ESCE chunk contains %i", numCounters,esce.count);
         if (counterArray) MemoryHeap::FormHeapFree(counterArray);
         counterArray = esce.counters;   esce.counters = 0;
         numCounters = esce.count;   esce.count = 0;
-        for (int c = 0; c < numCounters; c++) TESFileFormats::ResolveModValue(counterArray[c],file,TESFileFormats::kResolutionType_MgefCode); // resolve codes
+        for (int c = 0; c < numCounters; c++) TESFileFormats::ResolveModValue(counterArray[c],file,TESFileFormats::kResType_MgefCode); // resolve codes
         // handler & handler-specific parameters
         if (loadVersion > VERSION_VANILLA_OBLIVION && loadVersion < MAKE_VERSION(2,0,0,0))
         {
@@ -320,39 +506,24 @@ bool EffectSetting::LoadForm(TESFile& file)
             UInt32 ehCode = (loadVersion < VERSION_OBME_FIRSTVERSIONED) ? datx.effectHandler : obme.effectHandler;
             UInt32 hParamA = mgefParam;
             UInt32 hParamB = (loadVersion < VERSION_OBME_FIRSTVERSIONED) ? datx.mgefParamB : obme._mgefParamB;
-            UInt32 hFlags = (loadVersion < VERSION_OBME_FIRSTVERSIONED) ? datx.mgefFlagOverrides : obme.mgefObmeFlags;
+            UInt32 hParamFlags = (loadVersion < VERSION_OBME_FIRSTVERSIONED) ? datx.mgefFlagOverrides : obme.mgefObmeFlags;
+            hParamFlags = (hParamFlags & 0x00190000) | (mgefFlags & kMgefFlag_Detrimental);
+            UInt32 hUsesFlags = mgefFlags & 0x011F0000;
             // reset handler-specific param & flags on mgef proper
             mgefParam = 0;
-            mgefFlags &= ~0x011F0000;   // leave Detrimental flag alone
+            mgefFlags &= ~0x011F0004;
             // set handler
             SetHandler(MgefHandler::Create(ehCode,*this));
-            if (ValueModifierMgefHandler* mdav = dynamic_cast<ValueModifierMgefHandler*>(&GetHandler()))
-            {
-                // AV source & AV
-                TESFileFormats::ResolveModValue(hParamA,file,TESFileFormats::kResolutionType_ActorValue);
-                TESFileFormats::ResolveModValue(hParamB,file,TESFileFormats::kResolutionType_ActorValue);
-                if (hParamA == ActorValues::kActorVal_Strength && hParamB == ActorValues::kActorVal_Luck) SetFlag(kMgefFlagShift_UseAttribute,true);
-                else if (hParamA == ActorValues::kActorVal_Armorer && hParamB == ActorValues::kActorVal_Speechcraft) SetFlag(kMgefFlagShift_UseSkill,true);
-                else 
-                {
-                    mgefParam = hParamA;
-                    SetFlag(kMgefFlagShift_UseActorValue,true);
-                }
-                // avPart
-                mdav->avPart = (hFlags >> (kMgefFlagShift__ParamFlagC-0x20)) & 0x3;
-                if (hFlags & kMgefObmeFlag__ParamFlagB) mdav->avPart = ValueModifierMgefHandler::kAVPart_MaxSpecial;
-            }
-            else // TODO - support other 3 handlers
-            {
-            } 
+            // convert handler parameters & flags
+            ConvertV1HandlerData(*this,file,loadVersion,hParamA,hParamB,hParamFlags,hUsesFlags);
         }
         else
         {
             SetHandler((loadVersion == VERSION_VANILLA_OBLIVION) ? 0 : ehnd);
             if (mgefFlags & (kMgefFlag_UseWeapon | kMgefFlag_UseArmor | kMgefFlag_UseActor))
-                TESFileFormats::ResolveModValue(mgefParam,file,TESFileFormats::kResolutionType_FormID); // param is a summoned formID
+                TESFileFormats::ResolveModValue(mgefParam,file,TESFileFormats::kResType_FormID); // param is a summoned formID
             else if (mgefFlags & kMgefFlag_UseActorValue) 
-                TESFileFormats::ResolveModValue(mgefParam,file,TESFileFormats::kResolutionType_ActorValue); // param is a modified avCode
+                TESFileFormats::ResolveModValue(mgefParam,file,TESFileFormats::kResType_ActorValue); // param is a modified avCode
         }
         ehnd = 0;
     }  
@@ -398,11 +569,11 @@ void EffectSetting::SaveFormChunks()
         // set resolution info (deprecated, kept only for convenience with TES4Edit)
         if (mgefFlags & (kMgefFlag_UseWeapon | kMgefFlag_UseArmor | kMgefFlag_UseActor))
         {
-            obme._mgefParamResType = TESFileFormats::kResolutionType_FormID; // param is a summoned formID
+            obme._mgefParamResType = TESFileFormats::kResType_FormID; // param is a summoned formID
         }
         else if (mgefFlags & kMgefFlag_UseActorValue)
         {
-            obme._mgefParamResType = TESFileFormats::kResolutionType_ActorValue; // param is a modified avCode
+            obme._mgefParamResType = TESFileFormats::kResType_ActorValue; // param is a modified avCode
         }
         // save
         PutFormRecordChunkData(Swap32('OBME'),&obme,sizeof(obme));
@@ -463,7 +634,11 @@ void EffectSetting::LinkForm()
     if (formFlags & kFormFlags_Linked) return;  // form already linked
     _VMESSAGE("Linking %s", GetDebugDescEx().c_str());
 
-    // TODO - school, resistanceAV
+    // school, resistAV
+    #ifndef OBLIVION    
+    if (TESForm* form = TESFileFormats::GetFormFromCode(GetResistAV(),TESFileFormats::kResType_ActorValue)) form->AddCrossReference(this);  // resistAV
+    // TODO - school
+    #endif
 
     // VFX, AFX
     // NOTE: because TESSound, TESEffectShader, and TESObjectLIGH are not yet defined in COEF, the
@@ -488,13 +663,21 @@ void EffectSetting::LinkForm()
     // magic groups
     MagicGroupList::LinkComponent();
 
-    // counter effects
+    // counter effects - unrecognized counters are discarded, to prevent 'dirty' edits in mgef dialog
     #ifndef OBLIVION
+    UInt32 j = 0;
     for (int i = 0; i < numCounters; i++)
     {
-        if (::EffectSetting* counter = EffectSetting::LookupByCode(counterArray[i])) {counter->AddCrossReference(this);}
-        else _WARNING("%s has unrecognized counter effect code '%4.4s' {%08X}",GetDebugDescEx().c_str(),&counterArray[i],counterArray[i]);
+        UInt32 code = counterArray[i];
+        counterArray[i] = 0;
+        if (::EffectSetting* counter = EffectSetting::LookupByCode(code)) 
+        {
+            counterArray[j] = code; j++;
+            counter->AddCrossReference(this);
+        }
+        else _WARNING("%s has unrecognized counter effect code '%4.4s' {%08X}",GetDebugDescEx().c_str(),&code,code);
     }
+    numCounters = j;
     #endif
     
     // handler (includes mgefParam)
@@ -528,9 +711,13 @@ void EffectSetting::CopyFrom(TESForm& copyFrom)
     enchantFactor = mgef->enchantFactor;
     barterFactor = mgef->barterFactor;
     projSpeed = mgef->projSpeed;
-    // resistAV - TODO - Add/Remove references from AV token
+    // school, resistAV
+    #ifndef OBLIVION    
+    if (TESForm* form = TESFileFormats::GetFormFromCode(GetResistAV(),TESFileFormats::kResType_ActorValue)) form->RemoveCrossReference(this);  // resistAV
+    if (TESForm* form = TESFileFormats::GetFormFromCode(mgef->GetResistAV(),TESFileFormats::kResType_ActorValue)) form->AddCrossReference(this); 
+    // TODO - school
+    #endif
     SetResistAV(mgef->GetResistAV()); // standardize 'no resistance' code
-    // school - TODO - Add/Remove references from school token
     school = mgef->school;
     // VFX, AFX
     #ifndef OBLIVION
@@ -592,9 +779,9 @@ void EffectSetting::CopyFrom(TESForm& copyFrom)
     }
 
     // handler & mgefParam
-    MgefHandler* newHandler = MgefHandler::Create(mgef->GetHandler().HandlerCode(),*this);
-    newHandler->CopyFrom(mgef->GetHandler());   // manages CrossRefs for mgefParam
-    SetHandler(newHandler);
+    GetHandler().UnlinkHandler();   // clear any references made by the handler
+    SetHandler(MgefHandler::Create(mgef->GetHandler().HandlerCode(),*this));
+    GetHandler().CopyFrom(mgef->GetHandler());   // manages CrossRefs for mgefParam
     mgefParam = mgef->mgefParam;    // handler only copies if it uses the param
     
     // assign a formID for non-temporary objects that don't already have one
@@ -650,76 +837,47 @@ bool EffectSetting::CompareTo(TESForm& compareTo)
 {        
     _DMESSAGE("Comparing %s",GetDebugDescEx().c_str());
 
-    // define failure codes - all of which must evaluate to boolean true
-    enum
-    {
-        kCompareSuccess         = 0,
-        kCompareFail_General    = 1,
-        kCompareFail_Polymorphic,
-        kCompareFail_BaseComponents,
-        kCompareFail_MgefCode,
-        kCompareFail_BaseCost,
-        kCompareFail_EnchantFactor,
-        kCompareFail_BarterFactor,
-        kCompareFail_ProjSpeed,
-        kCompareFail_ResistAV,
-        kCompareFail_School,
-        kCompareFail_Light,
-        kCompareFail_EffectShader,
-        kCompareFail_EnchantShader,
-        kCompareFail_CastingSound,
-        kCompareFail_BoltSound,
-        kCompareFail_HitSound,
-        kCompareFail_AreaSound,
-        kCompareFail_MgefFlags,
-        kCompareFail_ObmeFlags,
-        kCompareFail_Groups,
-        kCompareFail_Counters,
-        kCompareFail_Handler,
-        kCompareFail_MgefParam,
-    };
-
     // convert form to mgef
     EffectSetting* mgef = (EffectSetting*)dynamic_cast<::EffectSetting*>(&compareTo);
     if (!mgef)
     {
         BSStringT desc;  compareTo.GetDebugDescription(desc);    
         _WARNING("Attempted compare to %s",desc.c_str());
-        return BoolEx(kCompareFail_Polymorphic);
+        return BoolEx(02);
     }    
 
     // compare BaseFormComponents
-    if (TESForm::CompareAllComponentsTo(compareTo)) return BoolEx(kCompareFail_BaseComponents);
+    if (TESForm::CompareAllComponentsTo(compareTo)) return BoolEx(10);
 
     // compare mgefCodes
-    if (mgefCode != mgef->mgefCode) return BoolEx(kCompareFail_MgefCode);
+    if (mgefCode != mgef->mgefCode) return BoolEx(20);
 
     // floating point members
-    if (baseCost != mgef->baseCost) return BoolEx(kCompareFail_BaseCost);
-    if (enchantFactor != mgef->enchantFactor) return BoolEx(kCompareFail_EnchantFactor);
-    if (barterFactor != mgef->barterFactor) return BoolEx(kCompareFail_BarterFactor);
-    if (projSpeed != mgef->projSpeed) return BoolEx(kCompareFail_ProjSpeed);
+    if (baseCost != mgef->baseCost) return BoolEx(30);
+    if (enchantFactor != mgef->enchantFactor) return BoolEx(31);
+    if (barterFactor != mgef->barterFactor) return BoolEx(32);
+    if (projSpeed != mgef->projSpeed) return BoolEx(33);
     // resistances
-    if (GetResistAV() != mgef->GetResistAV()) return BoolEx(kCompareFail_ResistAV);
+    if (GetResistAV() != mgef->GetResistAV()) return BoolEx(40);
     // school
-    if (school != mgef->school) return BoolEx(kCompareFail_School);
+    if (school != mgef->school) return BoolEx(42);
     // VFX & AFX
-    if (light != mgef->light) return BoolEx(kCompareFail_Light);
-    if (effectShader != mgef->effectShader) return BoolEx(kCompareFail_EffectShader);
-    if (enchantShader != mgef->enchantShader) return BoolEx(kCompareFail_EnchantShader);
-    if (castingSound != mgef->castingSound) return BoolEx(kCompareFail_CastingSound);
-    if (boltSound != mgef->boltSound) return BoolEx(kCompareFail_BoltSound);
-    if (hitSound != mgef->hitSound) return BoolEx(kCompareFail_HitSound);
-    if (areaSound != mgef->areaSound) return BoolEx(kCompareFail_AreaSound);
+    if (light != mgef->light) return BoolEx(50);
+    if (effectShader != mgef->effectShader) return BoolEx(51);
+    if (enchantShader != mgef->enchantShader) return BoolEx(52);
+    if (castingSound != mgef->castingSound) return BoolEx(53);
+    if (boltSound != mgef->boltSound) return BoolEx(54);
+    if (hitSound != mgef->hitSound) return BoolEx(55);
+    if (areaSound != mgef->areaSound) return BoolEx(56);
     // flags
-    if (mgefFlags != mgef->mgefFlags) return BoolEx(kCompareFail_MgefFlags);
-    if (mgefObmeFlags != mgef->mgefObmeFlags) return BoolEx(kCompareFail_ObmeFlags);
+    if (mgefFlags != mgef->mgefFlags) return BoolEx(60);
+    if (mgefObmeFlags != mgef->mgefObmeFlags) return BoolEx(62);
 
     // groups
-    if (MagicGroupList::CompareComponentTo(*(MagicGroupList*)mgef)) return BoolEx(kCompareFail_Groups);
+    if (MagicGroupList::CompareComponentTo(*(MagicGroupList*)mgef)) return BoolEx(70);
 
     // counter effects
-    if (numCounters != mgef->numCounters) return BoolEx(kCompareFail_Counters); // counter effect count doesn't match
+    if (numCounters != mgef->numCounters) return BoolEx(80); // counter effect count doesn't match
     for (int i = 0; i < numCounters; i++)
     {
         bool found = false;
@@ -727,14 +885,14 @@ bool EffectSetting::CompareTo(TESForm& compareTo)
         {
             if (counterArray[i] == mgef->counterArray[j]) { found = true; break; }
         }
-        if (!found)  return BoolEx(kCompareFail_Counters); // unmatched counter effect
+        if (!found)  return BoolEx(80); // unmatched counter effect
     }
    
     // handler & mgefParam
-    if (GetHandler().CompareTo(mgef->GetHandler())) return BoolEx(kCompareFail_Handler);
-    if (mgefParam != mgef->mgefParam) return BoolEx(kCompareFail_MgefParam);
+    if (GetHandler().CompareTo(mgef->GetHandler())) return BoolEx(90);
+    if (mgefParam != mgef->mgefParam) return BoolEx(90);
 
-    return BoolEx(kCompareSuccess);
+    return false;
 }
 #ifndef OBLIVION
 // Reference management
@@ -748,7 +906,9 @@ void EffectSetting::RemoveFormReference(TESForm& form)
     ::EffectSetting::RemoveFormReference(form);
     mgefParam = _mgefParam;
 
-    // TODO - school, resistAV
+    // school, resistAV
+    if (&form == TESFileFormats::GetFormFromCode(GetResistAV(),TESFileFormats::kResType_ActorValue)) SetResistAV(ActorValues::kActorVal__UBOUND); // resistAV
+    // TODO - school
 
     // groups
     MagicGroupList::RemoveComponentFormRef(form);
@@ -799,7 +959,11 @@ void EffectSetting::UnlinkForm()
      if (~formFlags & kFormFlags_Linked) return;  // form not linked
     _VMESSAGE("Unlinking %s", GetDebugDescEx().c_str());
 
-    // TODO - school, resistanceAV
+    // school, resistAV
+    #ifndef OBLIVION    
+    if (TESForm* form = TESFileFormats::GetFormFromCode(GetResistAV(),TESFileFormats::kResType_ActorValue)) form->RemoveCrossReference(this);  // resistAV
+    // TODO - school
+    #endif
 
     // VFX, AFX
     #ifndef OBLIVION
@@ -865,22 +1029,22 @@ public:
         insert('ABHE','ABSB',0x00000025,0x00000000,0,Magic::kHostility_Hostile);
         insert('ABSK','ABSB',0x00080027,0x00000000,0,Magic::kHostility_Hostile);
         insert('ABSP','ABSB',0x00000025,0x00000000,0,Magic::kHostility_Hostile);
-        insert('BA01','SMBO',0x00020112,0x00000000,0,Magic::kHostility_Beneficial);
-        insert('BA02','SMBO',0x00020112,0x00000000,0,Magic::kHostility_Beneficial);
-        insert('BA03','SMBO',0x00020112,0x00000000,0,Magic::kHostility_Beneficial);
-        insert('BA04','SMBO',0x00020112,0x00000000,0,Magic::kHostility_Beneficial);
-        insert('BA05','SMBO',0x00020112,0x00000000,0,Magic::kHostility_Beneficial);
-        insert('BA06','SMBO',0x00020112,0x00000000,0,Magic::kHostility_Beneficial);
-        insert('BA07','SMBO',0x00020112,0x00000000,0,Magic::kHostility_Beneficial);
-        insert('BA08','SMBO',0x00020112,0x00000000,0,Magic::kHostility_Beneficial);
-        insert('BA09','SMBO',0x00020112,0x00000000,0,Magic::kHostility_Beneficial);
-        insert('BA10','SMBO',0x00020112,0x00000000,0,Magic::kHostility_Beneficial);
-        insert('BABO','SMBO',0x00020112,0x00000000,0,Magic::kHostility_Beneficial);
-        insert('BACU','SMBO',0x00020112,0x00000000,0,Magic::kHostility_Beneficial);
-        insert('BAGA','SMBO',0x00020112,0x00000000,0,Magic::kHostility_Beneficial);
-        insert('BAGR','SMBO',0x00020112,0x00000000,0,Magic::kHostility_Beneficial);
-        insert('BAHE','SMBO',0x00020112,0x00000000,0,Magic::kHostility_Beneficial);
-        insert('BASH','SMBO',0x00020112,0x00000000,0,Magic::kHostility_Beneficial);
+        insert('BA01','SMBO',0x00020112,MagicGroup::kFormID_BoundHelmLimit,1,Magic::kHostility_Beneficial);
+        insert('BA02','SMBO',0x00020112,MagicGroup::kFormID_BoundHelmLimit,1,Magic::kHostility_Beneficial);
+        insert('BA03','SMBO',0x00020112,MagicGroup::kFormID_BoundHelmLimit,1,Magic::kHostility_Beneficial);
+        insert('BA04','SMBO',0x00020112,MagicGroup::kFormID_BoundHelmLimit,1,Magic::kHostility_Beneficial);
+        insert('BA05','SMBO',0x00020112,MagicGroup::kFormID_BoundHelmLimit,1,Magic::kHostility_Beneficial);
+        insert('BA06','SMBO',0x00020112,MagicGroup::kFormID_BoundHelmLimit,1,Magic::kHostility_Beneficial);
+        insert('BA07','SMBO',0x00020112,MagicGroup::kFormID_BoundHelmLimit,1,Magic::kHostility_Beneficial);
+        insert('BA08','SMBO',0x00020112,MagicGroup::kFormID_BoundHelmLimit,1,Magic::kHostility_Beneficial);
+        insert('BA09','SMBO',0x00020112,MagicGroup::kFormID_BoundHelmLimit,1,Magic::kHostility_Beneficial);
+        insert('BA10','SMBO',0x00020112,MagicGroup::kFormID_BoundHelmLimit,1,Magic::kHostility_Beneficial);
+        insert('BABO','SMBO',0x00020112,MagicGroup::kFormID_BoundHelmLimit,1,Magic::kHostility_Beneficial);
+        insert('BACU','SMBO',0x00020112,MagicGroup::kFormID_BoundHelmLimit,1,Magic::kHostility_Beneficial);
+        insert('BAGA','SMBO',0x00020112,MagicGroup::kFormID_BoundHelmLimit,1,Magic::kHostility_Beneficial);
+        insert('BAGR','SMBO',0x00020112,MagicGroup::kFormID_BoundHelmLimit,1,Magic::kHostility_Beneficial);
+        insert('BAHE','SMBO',0x00020112,MagicGroup::kFormID_BoundHelmLimit,1,Magic::kHostility_Beneficial);
+        insert('BASH','SMBO',0x00020112,MagicGroup::kFormID_BoundHelmLimit,1,Magic::kHostility_Beneficial);
         insert('BRDN','MDAV',0x00000073,0x00000000,0,Magic::kHostility_Hostile);
         insert('BW01','SMBO',0x00010112,MagicGroup::kFormID_BoundWeaponLimit,1,Magic::kHostility_Beneficial);
         insert('BW02','SMBO',0x00010112,MagicGroup::kFormID_BoundWeaponLimit,1,Magic::kHostility_Beneficial);
@@ -939,8 +1103,8 @@ public:
         insert('LGHT','LGHT',0x80000072,0x00000000,0,Magic::kHostility_Neutral);
         insert('LISH','SHLD',0x0000007A,0x00000000,0,Magic::kHostility_Beneficial);
         insert('LOCK','LOCK',0x000000E0,0x00000000,0,Magic::kHostility_Neutral);
-        insert('MYHL','SMBO',0x00020112,0x00000000,0,Magic::kHostility_Beneficial);
-        insert('MYTH','SMBO',0x00020112,0x00000000,0,Magic::kHostility_Beneficial);
+        insert('MYHL','SMBO',0x00020112,MagicGroup::kFormID_BoundHelmLimit,1,Magic::kHostility_Beneficial);
+        insert('MYTH','SMBO',0x00020112,MagicGroup::kFormID_BoundHelmLimit,1,Magic::kHostility_Beneficial);
         insert('NEYE','NEYE',0x00000112,0x00000000,0,Magic::kHostility_Beneficial);
         insert('OPEN','OPEN',0x000000C0,0x00000000,0,Magic::kHostility_Neutral);
         insert('PARA','PARA',0x00000173,0x00000000,0,Magic::kHostility_Hostile);

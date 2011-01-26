@@ -2,8 +2,6 @@
 #include "OBME/MagicGroup.rc.h"
 #include "Components/EventManager.h"
 
-#include "OBME/MsgDesc.h"
-
 #include "API/TES/TESDataHandler.h"
 #include "API/TESFiles/TESFile.h"
 #include "API/CSDialogs/TESDialog.h"
@@ -206,6 +204,7 @@ TESForm* MagicGroup::CreateMagicGroup() { return new MagicGroup; } // method use
 MagicGroup* MagicGroup::g_SpellLimit            = 0;
 MagicGroup* MagicGroup::g_SummonCreatureLimit   = 0;
 MagicGroup* MagicGroup::g_BoundWeaponLimit      = 0;
+MagicGroup* MagicGroup::g_BoundHelmLimit        = 0;
 MagicGroup* MagicGroup::g_ShieldVFX             = 0;
 void MagicGroup::CreateDefaults()
 {   
@@ -239,6 +238,16 @@ void MagicGroup::CreateDefaults()
         TESDataHandler::dataHandler->AddFormToHandler(g_BoundWeaponLimit);
         g_BoundWeaponLimit->name = "Limited Bound Weapons";
         g_BoundWeaponLimit->SetEditorID("mggpBoundWeaponLimit");
+    }
+    //
+    g_BoundHelmLimit = dynamic_cast<MagicGroup*>(TESForm::LookupByFormID(kFormID_BoundHelmLimit));
+    if (!g_BoundHelmLimit)
+    {
+        g_BoundHelmLimit = new MagicGroup;  
+        g_BoundHelmLimit->SetFormID(kFormID_BoundHelmLimit);
+        TESDataHandler::dataHandler->AddFormToHandler(g_BoundHelmLimit);
+        g_BoundHelmLimit->name = "Limited Bound Helms";
+        g_BoundHelmLimit->SetEditorID("mggpBoundHelmLimit");
     }
     //
     g_ShieldVFX = dynamic_cast<MagicGroup*>(TESForm::LookupByFormID(kFormID_ShieldVFX));
@@ -598,7 +607,7 @@ bool MagicGroupList::LoadComponent(MagicGroupList& groupList, TESFile& file)
     if (file.GetChunkType() != Swap32('MGLS')) return false;    // wrong chunk type
     MagicGroupListMGLSChunk mgls;
     file.GetChunkData(&mgls,sizeof(mgls));  // load MGLS chunk
-    TESFileFormats::ResolveModValue(mgls.groupFormID,file,TESFileFormats::kResolutionType_FormID);
+    TESFileFormats::ResolveModValue(mgls.groupFormID,file,TESFileFormats::kResType_FormID);
     groupList.AddMagicGroup((MagicGroup*)mgls.groupFormID,mgls.weight);
     return true;
 }
@@ -622,6 +631,8 @@ void MagicGroupList::LinkComponent()
         }
         else
         {
+            BSStringT desc; if (parentForm) parentForm->GetDebugDescription(desc);
+            _ERROR("%s has a MagicGroup of unrecognized type",desc.c_str());
             // invalid group formid, remove from list
             *lastPtr = entry->next;
             delete entry;

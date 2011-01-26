@@ -46,7 +46,8 @@ public:
     static const UInt32 kFormID_SpellLimit          = 0x400;    static MagicGroup* g_SpellLimit;
     static const UInt32 kFormID_SummonCreatureLimit = 0x401;    static MagicGroup* g_SummonCreatureLimit;
     static const UInt32 kFormID_BoundWeaponLimit    = 0x402;    static MagicGroup* g_BoundWeaponLimit;
-    static const UInt32 kFormID_ShieldVFX           = 0x403;    static MagicGroup* g_ShieldVFX;
+    static const UInt32 kFormID_BoundHelmLimit      = 0x403;    static MagicGroup* g_BoundHelmLimit;
+    static const UInt32 kFormID_ShieldVFX           = 0x404;    static MagicGroup* g_ShieldVFX;
         // TODO - rest of default Magic Groups
 
     // CS dialog management

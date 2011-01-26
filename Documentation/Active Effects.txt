@@ -117,18 +117,18 @@ Indiv. Active Effects:
             implementation 2 - scan nearby targets every frame
         -   'Recovers' flag indicates that aura item should be dispelled from affected targets when they leave the aura's range or the aura
             itself is removed.  requires tracking of all affected targets
--   ScriptEffect:
-	-	ParamA: script formID
-    -   FlagA indicates that the effect is treated like a vanilla SEFF (at the moment, this just affects the ScriptEffectAlwaysApplies behavior)
-    -   If efixParam is nonzero, it is used as the script formid.  Otherwise, it's the contents of ParamA.
-    -   The efitParam is left for custom use by other mods or the script author.
-        FlagC & FlagD indicate efitParam should be resolved as FormID, or MgefCode, respectively
++   ScriptEffect:
+    +   Executes an Magic Effect Script, using the ScriptEffectStart, ScriptEffectUpdate, & ScriptEffectFinish blocks
+    +   Script comes from EffectSetting by default, or EffectItem::ScriptInfo if present (no override flag for the SCIT script, just check if it's present)
+    +   Flag to determine if 'ScriptEffectAlwaysApplies' behavior affects this EffectSetting
+    +   A resolution type for the EffectItem::ActorValue field, so that it can be resolved by script authors.
+        Deprecated (since it involves script authors using the ActorValue field for something other than it's intended purpose), but supported for compatibility
+    +   A new user parameter, with resolution type & value, stored on the EffectSetting and optionally overriden on the EffectItem.    
     -   NOTE: there is a bug in the execution of scripts, where an effect script active on a summoned creature is stripped of it's variables if the 
         player changes cells.  The variables are actually gone - not just reset to zero once, but every frame.  This may be only for magic effect
         scripts, only for scripts not on the player, only for scripts on summoned objects (which are temporary references?), or some combination
         of the three. This needs testing, and fixing if possible.
-    -   Fix script function GetScriptEffectIndex, GetNthEffectItemCode, GetMagicEffectCode that takes ref as param, AddEffectItem
-    -   Change script runner to run *all* blocks in magic effect scripts?
+    -   NOTE: additional reported bugs with ScriptEffect include the Finish and/or Update blocks never firing.
 +   AssociatedItemEffect:    
 	+	References a base form, e.g. for summoning
     +	SummonCreatureEffect:
@@ -202,23 +202,28 @@ Indiv. Active Effects:
     -   ParamA: fromid of light to use
  -	Darkness
     -   same as light, more or less
--	Dispel:
-    -   hostile dispel targets only effects from beneficial items, beneficial dispel targets only efects from hostile items, 
-        neutral dispel targets everything.
-    -   Param: Target type - magic effect, effect handler, magic item, or LL of magic items
-    -   Param: Target - mgefCode, ehCode, magic item formID, or LL formID
-    -   Flag: AtmoicDispel -   if clear, dispel either removes completely or doesn't touch
-                                if set, dispel reduces effective magicka cost of ActiveEffect
-            note that some effects parse & use their magnitudes/area/range only once.
-            Dispel should focus mainly on reducing duration.  If an effect has no duration or is persistent, have to
-            remove and re-apply at a lower magnitude
-    -   Flag: distribute magnitude among effects/items (vs. each effect/item gets whole magnitude)
-    -   Flag: apply to all effects from an item (vs. dispelling them individually)
-    -   Param: bitmask of magic item types to dispel.  used only if magic item or leveled magic item is not provided
-    -   Flag: use magic item cost rather than sum of current active effect costs.  used only if AtomicDispel & Atomic Magic Item are set
-    -   Flags: use caster skill modifier for OnSelf/OnTouch/OnTarget effects.  used only if using magic item cost.
-    -   Dispel:
-    -   Cure(DEP) - deprecate in favor of Dispel
++	Dispel:
+    +   Remove an active magic item if it's casting cost is compares favorably with the magnitude (VANILLA)
+    +   hostile dispel targets only effects from beneficial items, beneficial dispel targets only efects from hostile items, neutral dispel targets everything.
+    +   Target specification:
+        +   Specific Effect Handler
+            +   Specific Magic Effect
+        +   Magic Item types (each independently), including enchantment subtypes
+            +   Specific magic item
+            +   LevelelSpell, for a list of spells
+    +   Atomic MagicItem: Dispel acts on all active effects from a single magic item, as opposed to active effects individually.  Acts as a modifier to the
+        behavior of the Atomic Dispel and Distribute Magnitude options.
+    +   Atmoic Dispel: Dispel either removes completely or doesn't change.  Otherwise, dispel reduces effective magicka cost of each targeted object.
+        If an effect has a duration, that is reduced.  If an effect has no duration (e.g. persistent) it's magnitude is reduced.  If an effect has neither
+        duration nor magnitude then it is immutably Atomic.        
+        NOTE: some effects parse & use their magnitudes only once.  If magnitude must be changed, need to remove and re-apply effect.
+    +   Distribute Magnitude:  Magnitude is partitioned equally among all targetable objects.  If a particular object is removed completely without 'using' 
+        all of it's alloted potion, then the remainder is distributed among the remaining objects.  Otherwise, each targetable object gets the entire magnitude, 
+        all independently of each other.
+    +   Dispel effects with 'No Magnitude' effectively have infinite magnitude - they dispel all targeted objects.
+    +   Optionally, use the casting cost (actual magicka paid by caster) rather than effective magicka cost
+        May need additional flag to use this option only for OnSelf effects, in order to reproduce vanilla behavior
+    +   Cure(DEP) - deprecate in favor of Dispel
 -   ModifyInventoryItems(RSH):
     -   with the introduction of inventory-walking functions in obse v19, new effects in this vein are more straightforward to do with
         the script effect handler.

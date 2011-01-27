@@ -206,6 +206,7 @@ MagicGroup* MagicGroup::g_SummonCreatureLimit   = 0;
 MagicGroup* MagicGroup::g_BoundWeaponLimit      = 0;
 MagicGroup* MagicGroup::g_BoundHelmLimit        = 0;
 MagicGroup* MagicGroup::g_ShieldVFX             = 0;
+MagicGroup* MagicGroup::g_ActiveEffectDisplay   = 0;
 void MagicGroup::CreateDefaults()
 {   
     _MESSAGE("Creating default MagicGroups ...");
@@ -259,13 +260,25 @@ void MagicGroup::CreateDefaults()
         g_ShieldVFX->name = "Shield VFX Response";
         g_ShieldVFX->SetEditorID("mggpShieldVFX");
     }
+    //
+    g_ActiveEffectDisplay = dynamic_cast<MagicGroup*>(TESForm::LookupByFormID(kFormID_ActiveEffectDisplay));
+    if (!g_ActiveEffectDisplay)
+    {
+        g_ActiveEffectDisplay = new MagicGroup;  
+        g_ActiveEffectDisplay->SetFormID(kFormID_ActiveEffectDisplay);
+        TESDataHandler::dataHandler->AddFormToHandler(g_ActiveEffectDisplay);
+        g_ActiveEffectDisplay->name = "ActiveEffect Display";
+        g_ActiveEffectDisplay->SetEditorID("mggpActiveEffectDisplay");
+    }
 }
 void MagicGroup::ClearDefaults()
 {
     g_SpellLimit = 0;
     g_SummonCreatureLimit = 0;
     g_BoundWeaponLimit = 0;
+    g_BoundHelmLimit = 0;
     g_ShieldVFX = 0;
+    g_ActiveEffectDisplay = 0;
 }
 // CS dialog management 
 #ifndef OBLIVION

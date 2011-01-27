@@ -486,7 +486,8 @@ bool EffectSetting::LoadForm(TESFile& file)
         {
             UInt32 defGroup;    SInt32 defWeight;
             GetDefaultMagicGroup(mgefCode,defGroup,defWeight);
-            MagicGroupList::AddMagicGroup((MagicGroup*)defGroup,defWeight); // add default group, if any
+            MagicGroupList::AddMagicGroup((MagicGroup*)defGroup,defWeight); // add default group, if any   
+            MagicGroupList::AddMagicGroup((MagicGroup*)MagicGroup::kFormID_ActiveEffectDisplay,1); // add default display group
         }
         else // v2+
         {
@@ -1240,35 +1241,48 @@ bool EffectSetting::RequiresObmeMgefChunks()
     };
 
     // mgefCode - must be vanilla
-    if (!IsMgefCodeVanilla(mgefCode)) return BoolEx(kReqOBME_MgefCode);
+    if (!IsMgefCodeVanilla(mgefCode)) return BoolEx(10);
 
     // editorID - must be the mgefCode reinterpreted as a string
     char codestr[5] = {{0}};
     *(UInt32*)codestr = mgefCode;  
-    if (GetEditorID() == 0 || strcmp(GetEditorID(),codestr) != 0) return BoolEx(kReqOBME_EditorID);
+    if (GetEditorID() == 0 || strcmp(GetEditorID(),codestr) != 0) return BoolEx(20);
 
     // school - must be a vanilla magic school
-    if (school > Magic::kSchool__MAX) return BoolEx(kReqOBME_School);
+    if (school > Magic::kSchool__MAX) return BoolEx(30);
 
     // resistanceAV - must be a vanilla AV
-    if (GetResistAV() > ActorValues::kActorVal__MAX && GetResistAV() != ActorValues::kActorVal__UBOUND) return BoolEx(kReqOBME_ResistAV);
+    if (GetResistAV() > ActorValues::kActorVal__MAX && GetResistAV() != ActorValues::kActorVal__UBOUND) return BoolEx(35);
     
     // non-overridable mgef flags must match vanilla values
-    if ((mgefFlags & ~kMgefFlag__Overridable) != GetDefaultMgefFlags(mgefCode)) return BoolEx(kReqOBME_MgefFlags);
+    if ((mgefFlags & ~kMgefFlag__Overridable) != GetDefaultMgefFlags(mgefCode)) return BoolEx(40);
 
     // OBME flags (all except beneficial must be zero)
-    if (mgefObmeFlags & ~kMgefObmeFlag_Beneficial) return BoolEx(kReqOBME_ObmeFlags);
+    if (mgefObmeFlags & ~kMgefObmeFlag_Beneficial) return BoolEx(45);
 
     // beneficial flag - must be zero unless default hostility is beneficial
-    if ((mgefObmeFlags & kMgefObmeFlag_Beneficial) && GetDefaultHostility(mgefCode) != Magic::kHostility_Beneficial) return BoolEx(kReqOBME_BeneficialFlag);
+    if ((mgefObmeFlags & kMgefObmeFlag_Beneficial) && GetDefaultHostility(mgefCode) != Magic::kHostility_Beneficial) return BoolEx(46);
 
-    // magic groups must match vanilla groups, if any
-    UInt32 gpFormID; SInt32 gpWeight;
-    GetDefaultMagicGroup(mgefCode,gpFormID,gpWeight);
-    if (gpFormID && (!groupList || groupList->next != 0 || !groupList->group || groupList->group->formID != gpFormID || groupList->weight != gpWeight))
-       return BoolEx(kReqOBME_MagicGroup);  // group list doesn't contain single default group of correct weight
-    else if (gpFormID == 0 && groupList != 0)
-        return BoolEx(kReqOBME_MagicGroup);  // group list is not empty
+    // magic groups must match vanilla groups, if any    
+    UInt32 gpDispFormID = MagicGroup::kFormID_ActiveEffectDisplay;  // formID of default display group
+    UInt32 gpDefFormID = 0; SInt32 gpDefWeight = 0;
+    GetDefaultMagicGroup(mgefCode,gpDefFormID,gpDefWeight); // formID + weight for additional default group
+    for (MagicGroupList::GroupEntry* entry = groupList; entry; entry = entry->next)
+    {
+        if (!entry->group || !entry->group->formID) return BoolEx(50);  // invalid group
+        if (entry->group->formID == gpDispFormID)   // found default display group
+        {
+            if (entry->weight != 1) return BoolEx(51);
+            else gpDispFormID = 0;
+        }
+        else if (entry->group->formID == gpDefFormID)   // found default group
+        {
+            if (entry->weight != gpDefWeight) return BoolEx(52);
+            else gpDefFormID = 0;
+        }
+        else return BoolEx(55); // non-default group
+    }
+    if (gpDefFormID || gpDispFormID) return BoolEx(59); // required default group(s) not found
 
     // counter array - can contain no non-vanilla effects
     for (int i = 0; counterArray && i < numCounters; i++)

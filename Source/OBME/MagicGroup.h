@@ -48,6 +48,7 @@ public:
     static const UInt32 kFormID_BoundWeaponLimit    = 0x402;    static MagicGroup* g_BoundWeaponLimit;
     static const UInt32 kFormID_BoundHelmLimit      = 0x403;    static MagicGroup* g_BoundHelmLimit;
     static const UInt32 kFormID_ShieldVFX           = 0x404;    static MagicGroup* g_ShieldVFX;
+    static const UInt32 kFormID_ActiveEffectDisplay = 0x405;    static MagicGroup* g_ActiveEffectDisplay;
         // TODO - rest of default Magic Groups
 
     // CS dialog management

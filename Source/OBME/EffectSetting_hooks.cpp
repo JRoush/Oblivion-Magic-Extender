@@ -123,6 +123,8 @@ EffectSetting* EffectSettingCollection_Add_Hndl(UInt32 mgefCode, const char* nam
     mgef->numCounters = numCounters; // SetCounterEffects is bugged, doesn't set numCounters properly
     // get default hostility
     mgef->SetHostility(EffectSetting::GetDefaultHostility(mgefCode));
+    // display group (unlinked)
+    mgef->AddMagicGroup((MagicGroup*)MagicGroup::kFormID_ActiveEffectDisplay,1);
     // default group (unlinked)
     UInt32 defGroup; SInt32 defWeight;
     EffectSetting::GetDefaultMagicGroup(mgefCode,defGroup,defWeight);

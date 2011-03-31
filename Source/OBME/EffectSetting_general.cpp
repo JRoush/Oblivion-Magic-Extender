@@ -1397,7 +1397,7 @@ UInt32 EffectSetting::GetUnusedDynamicCode()
     // step up through dynamic code space & return first unused code
     static UInt32 rawcode = 0;
     // mask is current active file index in lowest word | dynamic bit
-    UInt32 mask = kMgefCode_DynamicFlag | (TESDataHandler::dataHandler ? (TESDataHandler::dataHandler->fileManager.nextFormID >> 0x18) : 0xFF);
+    UInt32 mask = kMgefCode_DynamicFlag | (TESDataHandler::dataHandler ? (TESDataHandler::dataHandler->nextFormID >> 0x18) : 0xFF);
     // outer loop for wrapping back to beginning of range (once only)
     for (int cycle = 0; cycle < 2; cycle++)
     {

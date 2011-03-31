@@ -397,7 +397,7 @@ void EffectSetting::SetInDialog(HWND dialog)
                             (formFlags & TESForm::kFormFlags_FromActiveFile) > 0 && // code only editable if effect is in active file
                             (fileList.Empty() || // no override files (newly created effect) ...
                                 (fileList.Count() == 1 && // .. or only a single override file, the active file
-                                fileList.firstNode.data == TESDataHandler::dataHandler->fileManager.activeFile)
+                                fileList.firstNode.data == TESDataHandler::dataHandler->activeFile)
                              );
         ctl = GetDlgItem(dialog,IDC_MGEF_MGEFCODE);            
         sprintf_s(buffer,sizeof(buffer),"%08X", mgefCode);

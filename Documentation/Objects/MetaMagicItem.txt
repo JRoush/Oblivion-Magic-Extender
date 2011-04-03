@@ -1,0 +1,44 @@
+MetaMagic Item:
+===============
+Used to attach extra data to magic items, post-modify magicka cost, and provide visible feedback in the UI
+Add a hardcoded type for each new MagicItem property that should affect magicka cost or be shown in menu.
+
++   Name
++   Icon
++   FLAG: ShowInMenu:
+    +   FLAG: ShowName (if false, name appears when mouseover icon)
++   StacksWith: list of other MetaMagic items that can appear on the same line as this item
++   Display Callback - set name, icon, etc. before item is rendered.  called once for each metamagic item when 
+                        popout is first attached to a magic item.
+
++   FLAG: ForSpellmaking, ForEnchanting, ForAlchemy: useable in respective in-game menus
+
++   FLAG: AdjustCost (for efficiency)
++   Cost MultBase, MultMult: new cost = old cost * (MultBase + MultMult*param), use param=0 if no param
++   GetCost Callback: used to override magicka cost calc
++   SetCost Callback: used to override inverse magicka cost calc
+
++   FLAG: HasParam - magic item can set a param for this metamagic, similar to weights with magic groups
+
+Fields using MetaMagic, by stacking group:
+==========================================
+-   Mastery Requirement: mastery level name
+-   School - use school icon+name rather than metamagic properties
+
+-   Base Cost (to compare power): alternate icon, something to differentiate it + value
+-   Magic/Charge Cost: lightening icon + value
+-   Fatigue Cost: fatigue icon (does that exist?) + value
+
+-   Hositility & Selective Targeting: use a seperate icon for each combination of hostility + selective targeting
+
+-   Penetration value: penetration icon + value
+
+-   Projectile type
+-   Projectile homing
+-   Projectile multiplier
+-   Projectile bouncing properties
+
+-   Casting Time/Speed
+-   Recastable/Chargeable
+
+-   Description - gets it's own secondary popout

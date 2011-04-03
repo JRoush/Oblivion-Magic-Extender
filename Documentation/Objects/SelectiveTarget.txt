@@ -1,0 +1,12 @@
+Selective Targeting:
+====================
++   Target a specific formID:
+    +   specific REFR
+    +   base object form
+    +   LL of base object forms
++   Callback script: called to evaluate potential targets, returns a float [0.0,1.0] indicating how 'valid' the target is
+    effect is scaled before application based on return value, a la resistance
++   Target a specific hostility, relative to caster:
+    Beneficial  - hit only allied targets, and neutral targets as well (why not?)
+    Hostile     - hit only hostile targets
+    All         - hit all targets (default)

@@ -1,0 +1,88 @@
+Magic Group:
+============
++   Subgroup types: 
+    +   None / single subgroup
+    +   By Object Form
+    +   By Object Name
++   Value (per subgroup) = Aggregate function over all active objects in subgroup { Weight - possibly determined dynamically by object, e.g. to return magnitude }
++   Aggregate Functions: Must use a known function, in order to predict new values without actually modifying active effect lists
+    +   Sum
+    +   Max
+    +   Min 
++   Condition     
+    Evaluated at least once for each subgroup whenever an active effect in that group changes state (applied, removed, disabled, enabled)
+    Exactly once, if action is None
+    +   Value - const
+    +   Callback script override (group, target, value, changed object, changed active effect)
++   Actions:
+    +   None
+    +   Prevent Casting/Application (if Condition > 0):
+        +   OnSelf:  evaluate during MagicCaster.IsMagicItemUseable().  Need a suitable failure code & error message.
+        +   OnTouch/OnTarget: evaluate after ActiveEffect.IsMagicTargetValid().  UI message here as well?
+    +   Dispel Object (if Condition > 0):  
+        1.  Disable/track objects in subgroup in ascending order of weight, ties broken by chosen sort order, until Condition <= 0
+        2.  Enable tracked objects in reverse order, starting with second-to-last disabled, until Condition >= 0
+        3.  If Condition < 0, remove last reenabled object
+        4.  Dispel all tracked objects that where ultimately disabled, and reclaim magicka by specified fraction
+        5.  Reclaim magicka from all dispelled effects to remaining effects in group, if possible
+        Tie-breaking sort oders (also opposite order for each):
+            +   Magicka
+            +   Time elapsed
+            +   Time remaining
+            +   Magnitude
+    +   Enable/Disable Object (if Condition != 0):
+        Same proceedure as Dispel, except without tracking (the target simply has a persistent pool of disabled effects) or the final dispel+reclaim step
++   Display in AE tab (can toggle with flags):
+    Evaluate Value for each subgroup while rendering AE menu tab
+    +   Group/Subgroup Format: Group Icon (or icon of first entry if none), Group Name (name of first entry if none), Group/Subgroup Value
+    +   Active Object Format: determined via virtual method in MagicGroupList component
+        +   if EffectSetting: Icon + Name, source magic item name + type, weight, time remaining
+        +   if MagicItem: Icon + Name + type, weight, time remaining
+        +   if MagicGroup/subgroup: Icon + Name as above, weight 
+
+Implementation:
+===============
+Active Effect processing for each target is placed inside an outer loop.  In the inner loop, AEs are processed as before, except that when one is activated 
+or deactivated, any groups it is a member of is flagged for update.  In the outer loop, all flagged groups are processed.  The outer loop continues until
+no groups are flagged for update.  
+Groups are also processed when a magic item is prepared for casting
+
+
+Game Mechanics Superceded:
+==========================
++   Single instance stacking for spells
+    +   Subgroup = By Object Form
+    +   Weight = 1 for each member spell
+    +   Aggregate = Sum
+    +   Condition = Value - 1
+    +   Action = Dispel Object, secondary sort order = most time elapsed
++   Single bound item stacking limit (one per equippable item slot)
+    +   Subgroup = None
+    +   Weight = 1 for each member EffectSetting
+    +   Aggregate = Sum
+    +   Condition = Value - 1
+    +   Action = Prevent Casting
++   GMST-controlled stacking limit for player summons
+    +   Subgroup = None
+    +   Weight = 1 for each member EffectSetting
+    +   Aggregate = Sum
+    +   Condition = Callback: if target is player, return group value - controlling gmst.  otherwise, return 0
+    +   Action = Dispel Object, secondary sort order = most time elapsed
++   GMST-controlled stacking limit for consumed potions
+    +   Subgroup = None
+    +   Weight = 1 for each member potion
+    +   Aggregate = Sum
+    +   Condition = Callback: if target is player, return group value - controlling gmst, chosen by alchemy skill.  otherwise, return 0.
+    +   Action = Prevent Casting
++   Shield interaction shaders (one magic group per shield type)
+    +   Subgroup = None, 
+    +   Weight = 1 for Shield "providers", 0 for shield "consumers"
+    +   Aggregate = Sum
+    +   Condition = Callback: if changing object weight is zero && group value > 0, replace changed active effect shader with appropriate shield.
+    +   Action = None
++   ActiveEffect display
+    +   Subgroup = By Object Name (to catch EffectSettings whose names vary) 
+    +   Weight = Magnitude for each member effect setting
+    +   Aggregate = Sum
+    +   Action = None
+    +   Display = true

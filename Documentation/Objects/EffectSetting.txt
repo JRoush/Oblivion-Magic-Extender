@@ -1,0 +1,187 @@
+Effect Setting:
+===============
++	General:
+	+	FormID - some default effects have no formID, but exist as objects in memory nonetheless.
+                 All effects, even those with no formID, must have valid form data, including an OverrideList.
+    +   EditorID -  identical to the effect code for vanilla effects.  Need to decouple, make it an ordinary editor id.
+                    Requires changing file format.  Script functions that take 'magiceffect:chars' actually take the editor id
+	+	EffectCode -
+            -   0x00000000: None.  Default value.
+            -   0x000000001 - 0x7FFFFFFF: Static code.  Set by mod creator and always read literally.  Must be unique across all mods.
+            -   0x800000000 - 0xFFFFFFFE: Dynamic code. Set by obme on request, lowest byte is resolved like highest byte of formid on load
+                                            Since effect codes may be stored in script variables, a function must be provided for scripters
+                                            to resolve a stored code properly.
+            -   0xFFFFFFFF: Invalid code.
+    -	FLAGS:  Disabled -  Effect is ignored in aggregate qualities of magic items (magicka, hostility, school, mastery, etc.)
+                            Vanilla behavior also disables spell casting (DEP). 
+    -	FLAGS:  Spellmaking,Enchanting,NoIngredients
+    -   FLAGS:  NoRecast - what does this do?        
+	-	FLAGS:  UnknownF  - what does this do?  
+	-	FLAGS:  UnknownO - Probably a "Meta" effect flag already in use, perhaps a 'NoRange' flag
+    
++   School:    
+	+	School - school code (formID, for extended schools)
+    +   SchoolEx(RSH) - cached pointer to a MagicSchool object that represents the given school
+    
++   Display:
+    +	Name: aka simple name, plain text used in CS and in-game if no qualified name specified 
+    +   Full Descriptor Callback (RSH): used to override all or part of the full effect descriptor shown in menus
+    +	FLAGS: 	MagnitudeIs% - magnitude given as percentage, generally false except for resistances & weaknesses
+    +	FLAGS:	MagnitudeIsLevel - gives equivalent level for magnitude, generally false except for AI-altering effects
+    +   FLAGS:  MagnitudeIsFeet - magnitude given in feet
+    +	Description 
+    +   FLAGS:  Hidden(RSH) - effect shouldn't be shown in magic effect popout (replace with a dummy for ingredients/alchemy menu)
+    +	Icon
+    
++   Selective Targeting: 
+    +   SelectiveTarget(RSH, base component): targeting info for this effect
+    
++	Counters & Resistances:
+	+	FLAGS:	Atomic(RSH) - net resistance gives chance to dispel effect, doesn't scale magnitude, a la Reflect Spell
+	+	Resistance AV - AV that modifies applied magnitude.  (RSH): expand to all AVS, including new AVs > 0x800
+	+	CounterEffects - list of mgefCodes that remove or counteract this effect.  used by the AI?
+    
++	Hostility:
+	+	FLAGS:	Hostile - effects that would only be used on an enemy. Has strong impacts in alchemy & the game's ai system
+	+	FLAGS: 	Beneficial(RSH) - effects that would only be used on an ally.  ignored if hostile bit is set
+    
++   Magic Groups:
+    +   MagicGroupList(RSH, base component): list of all magic groups to which this effect belongs, along with the repective weight  
+        
++	Cost:
+	+	Base Cost - multiplier to calculated magicka cost
+    +   GetCost Callback(RSH) - used to override magicka cost calc
+    +   SetCost Callback(RSH) - used to override inverse magicka cost calc
+    +   Dispel Factor(RSH) - multiplies default dispelling factor (which is set by a game setting)    
++	Duration:
+    +	FLAGS:	NoDuration
+    +   FLAGS:  PersistOnDeath - effect is not removed if/when target dies.  Parhaps means it can be cast on dead targets as well
+    +   Duration Exponent(RSH) - multiplies/replaces duration exponent for default (RSH gmst) in magicka calcs
+    +	Enchantment Factor - affects magnitude of constant-effect enchantments.  (RSH): expand to all persistent items?
+	+	Barter Factor - affects gold cost of constant-effect enchantments
++	Magnitude: 
+	+	FLAGS:	NoMagnitude
+    +   Magnitude Exponent(RSH) -  multiplies/replaces default exponent for magnitude in magicka calcs
++	Area:
+	+	FLAGS:	NoArea
+    +   Area Exponent(RSH) - multiplies/replaces default exponent for area (RSH gmst) in magicka calcs
++	Range:
+	+	FLAGS:	OnSelf, OnTouch, OnTarget - allowed ranges
+    +   OnTouch Mult(RSH) - multiplies/replaces default ontouch factor (RSH gmst) in magicka calcs
+    +   OnTarget Mult(RSH) - multiplies/replaces default ontarget factor in magicka calcs
+    +   FLAGS:  NoProjectileRange(RSH) - effect has no maximum projectile range
+    +   Projectile Range Exponent(RSH) - multiplies/replaces default projectile range exponent (RSH gmst) in magicka calcs
+	+	ProjectileRangeMult(RSH) - multiplier for projectile distance traveled factor when computing final effectiveness
+    +   ProjectileRangeBase(RSH) - additive base for projectile distance traveled factor when computing final effectiveness
+	+	FLAGS: ProjectileType (2 bits) - {00 = Ball, 01 = Spray, 10 = Bolt, 11 = Fog}
+	+	ProjectileSpeed - multiplies speed of projectile (RSH): negative for infinite speed, e.g. action-at-a-distance    
+    +	FLAGS:  Projectile Explodes With Force - use havok for projectile explosion
+
++   EffectHandler:
+	+	FLAGS:  Recoverable - effects reversed upon expiration, generally true for everything but damage & restore effects    
+    +   EffectHandler(RSH) - pointer to EffectHandler structure that stores handler specific data and manages menus
+	+	Vanilla Fields:
+        Continue to use these fields for their original purpose; all other handler-specific data is stored in the attached handler object
+		+	AssociatedItemEffect Handler:
+			+	MgefParam: AssociatedItem formID
+			+	FLAGS: UseWeapon, UseArmor, UseCreature
+		+	ValueModifierEffect:
+			+	MgefParam: avCode for modified value (only if UseActorVal flag is set)
+			+	FLAGS: Detrimental (decreases attribute vs raising it)
+			+	FLAGS: UseSkill, UseAttribute - use avCode stored in effect items
+			+	FLAGS: UseActorVal - use avCode stored in MgefParam		
+            
++	VFX:
+	+	FLAGS:	NoHitFX
+    +   FLAGS:  VFXPersist
+	+	Model
+	+	HitShader
+	+	EnchantmentShader
+	+	Light
+    
++	AFX:
+	+ 	Casting
+	+	Bolt
+	+	Hit
+	+	Area
+    
+File Format Notes:
+==================
+-	unrecognized EffectSettings are safely ignored
+-	Don't repurpose existing fields.  Add new fields, and new chunks.
+        
+New Effects:
+============
+-	Shits & Giggles: 
+	-   Inebriation: fuzzy vision shader & unresponsive controls for player, special AI for actors
+	
+-	Weather:	work only out of doors, perhaps require a minimum area?
+	-	Meteorloogy: switches selected to weather type, allow overrides on an effect item basis
+
+-	Cheat Death:
+	-	Intervention:	Trap on-death event & return player to last "safe" location
+	
+-	Teleportation: perhaps more suitable as single spells rather than general effects - although the max range component is very fundamental
+	-	Assassin Rush:	max range, pulls player behind targeted object or in indicated direction
+	-	Blink:	max range, teleports player to line-of-sight destination
+	
+-	Summon Rideable:
+	Following Bethesda's lead, probably shouldn't implement any summons for creatures that don't occur naturally in the game.
+	But, other than imps,butterflies, and that dragon at the end, there are no flying enemies in the game.  I suppose if there were,
+	all the players who chose melee combat would end up feeling a bit silly.
+	-	Summon Pony
+	-	Summon Horse
+	-	Summon Pegasus: flys
+	-	Summon Unicorn: feedable, a la tiger from Midas Magic?  it's the *same* unicorn every time
+	-	Summon Dragon: flys
+	-	Summon Flying Carpet: flys, inanimate (invincible, doesn't attack, etc.)
+    
+-   Inventory:
+    Bound Arrows - add arrows to inventory
+    Disarm - unequip (force to drop?) current weapon
+    Disrobe - unequip (force to drop?) equipped object in specified slot(s)
+    
+	
+-	Sprays:
+	-	Inferno:	cone of fire
+	-	Hoarfrost:	mist of ice
+	-	Deathtouch:	tentacle or tentacles in small cone 
+					does direct 'poison' damage to health, and to one or more attributes
+	
+-	Dispel:
+	-	Cleanse:	Dispel only hostile effects
+	-	Breech:		Dispel only benifical effects
+		
+-	Summon:
+	-	Summon Baelrog:	permanent until killed, hostile to *everything* - must be charmed or commanded
+	-	Banish:	does damage proportional to magnitude to summoned creatures.  
+				if target isn't summoned, but has a summon(s) then they are targeted instead
+-	Modify AV:		
+	-	Acid Damage: does direct 'poison' damage to health, and to one or more random attributes
+	-	Blindness: increases actors 'blindness' stat
+	-	Frailty: weakness to physical damage (e.g. negative armor effect)
+	
+-	Shader Effects:	apply shaders to nearby objects a la detect life, but line of sight only
+	-	Deathsight:	corpses
+	-	Perception:	live actors, showing detection level
+	-	Threat:	live actors, showing relative level + confidence
+    -   Hostility: live actors, showing (aggression - disposition)
+    -   Detect Item: containers & refs, showing which contain/are specified form type
+		
+-	Summon Collector: main AI is to wander about player, collecting target items & returning to player
+	-	Summon Gatherer: no attack, picks ingredients
+	-	Summon Archer Dog: collects arrows
+	
+-	Chained Damage:	applies itself to other targets within area, Atmoic
+	-	Plague: chain on expire, direct 'disease' damage to health (Persistent)
+				confers randomly selected disease (disease chosen on casting and remains same for all targets afterwards)
+	-	Fiendfyre: chain on expire, fire damage (Persistent, with magnitude grows over time)
+	-	Chain Lightening: chain on hit, shock damage
+	
+-	Physics:
+	-	Barrier:	collision surface that blocks pathing, and slows movement, projectile speed (not magic)
+					Each has it's own duration, doesn't affect summon count
+	-	Shockwave:	explosion that does minimal damage but pushes objects out of the way.  Also propels caster?
+	-	Time Slow:	slow projectiles, actors, animations, everything but caster inside area of affect
+	-	Nullgravity:	target is unaffected by gravity or friction (if that's even possible)
+                        use to levitate self or target, possibly combine w/ shockwave to levitate self and scoot around

@@ -1,0 +1,195 @@
+Magic Types: 
+============
+SPEL: SPL, ABL, DIS, LPW, GPW, PSN, 
+ENCH: STF, WEP, APP, SCR
+ALCH, INGR 
+  
+Magic Item Uses:
+================
+    SPL,LPW,GPW - player select from UI, cast via controls.  AI select internally.
+    PSN - None (?)
+    ABL - Added to target during loading or by scripts.
+    DIS - Added to target during loading, by scripts, and on physical strike of player
+    SCR - player select from UI, cast via controls.  AI select internally.
+    ALCH - player select from UI, consume via controls.  AI select internally.  Detonates on weapon strike.
+    INGR - player select from UI, consume via controls.  AI select internally.
+    APP - player equip via UI.  AI select internally.
+    WEP,STF - player equips parent item via UI. AI select internally.  Note that parent item can still be used without enchantment  
+
+Magic Item
+===========
+Many (most) properties of magic items are aggregated from their effect items (magicka cost, hostility, range, etc.), depening on the specific magic item
+class.  These might be overriden by specific values, again depending on class.  OBME attempts to unify all properties of magic items, with each class merely
+providing different default values.
+
++   General:
+    +   Magic Type: determined in part by class, in part is selectable.
+        +   Cast Type: ENCH only
+    +   Effect Items:
+        +   Max effect count:  Maximum # effect items, only non-infinite for INGR.
+            (RSH): Disable entirely, or at least make INGR infinite.            
+    +   Application Order: Effect Items are applied in ascending order of (1) School Name, (2) Effect Name, (3) Magnitude, and (4) Duration
+        (RSH): Allow override that applies them in the order they appear in the magic item, so that e.g. Weaknesses can affect damage on the same item.
+        
++   Display:  
+    +   Name:  Display name for SPEL,ALCH,INGR.  ENCH uses name of parent object.
+                (RSH): Allow ENCH to support explicit names, appended to the parent object name.  No override flag, just detect if name is empty or not
+                Also, support for multiple enchantments/poisons means adding name fields to popout menu (?)
+    +   Icon:  For menu display w/ ALCH,INGR.  Uses icon of strongest item for SPEL,ENCH.
+                (RSH): Allow Icon for SPEL,ENCH; flag to use icon of strongest effect
+    +   Description(RSH): allow modders (and potentially players) to set a description for a magic item
+        
++   Hostility: affects AI, interaction with RSH Dispel, etc.  For ENCH/SPEL implemented with cached hostile effect count, for ALCH/INGR uses explicit counting.
+    (RSH): Allow explicit 3-state hostility; flag to use aggregate hostility of effect items as above.
+            NOTE: check for zero/nonzero values of hostile effect count for compatibility with obse.
+            
++   School: magic school for evaluating mastery/skill requirements, modifying magicka cost, & applying experience gains, etc.  autocal from strongest effect.
+    (RSH): allow an explicit override (MagicSchool object), with an appropriate NoAutoCalc flag.  set override to Alchemy school for INGR, and null (no school)
+            for magic items that normally have no school.            
+        
++   Gold Value: equal to Base Cost for POTN/INGR, used as retail cost.  Calculated from Base cost for SPL, when buying & selling.
+    Calculated (formula unkown) for enchanted items, to add to item gold cost.  Unused for other types.
+    (RSH): Possible explicit override for SPEL,ENCH to replace calculated values.  use explicit 0 for magic items that normally have no fatigue cost
+    
++   Spellmaking, Enchanting, Alchemy(RSH): whether or not the spell teaches it's effects for use in the corresponding menu.  
+    And'd with corresponding flags from effect items and effect settings.
+    
++   Costs & Requirements:
+    +   Aggregate Cost: Property of EffectItemList. Sum of EffectItem costs, used for actual cost. Takes a caster param.
+    +   Actual Cost (computed from aggregate cost, comes in CasterSpec and Base forms): 
+        only for actor magic casters.
+        +   For (SPL,LPW,GPW): magicka taken from caster (For SPL, use CasterSpec to include a skill factor from spell school)
+        +   For (STF,WEP): charge taken from weapon - use Base
+        +   For ALCH,INGR: used as item gold value - use Base
+        Can be explicitly set using FLAG: Autocalc.  If explicitly set, SPL will still include skill factor.
+        Used in Dispel handler, CasterSpec for OnSelf, Base otherwise.
+        (RSH): add a flag to enable/disable caster skill factor for all magic item types (as opposed to passing a null caster)
+        (RSH): NOTE: metamagic items will have cost adjustment callbacks that apply to the aggregate cost for autocalc items
+        (RSH) NOTE: IsAbleToUse callback can override the ability to cast with insifficient magicka
+        
+    +   Fatigue Cost (RSH): caster fatigue lost (SPL,LPW,GPW,PSN only). calculated from actual cost (CasterSpec), using a game formula. only for actor magic casters.
+        (RSH): allow explicit override, with an appropriate NoAutoCalc flag.  extend to all magic item types.
+        (RSH) NOTE: IsAbleToUse callback can override the ability to cast with insufficient fatigue
+    
+    +   Mastery Level: Skill mastery level required to use, only for SPL. Calc from Base cost. Can be explicitly set for SPEL using FLAG: Autocalc. only for actor magic casters.
+        (RSH): allow expicit override, with flag independent of cost autocalc flag.  Apply to all magic types, use explicit Novice level for magic items that normally have no req.
+       (RSH) NOTE: IsAbleToUse callback can override the ability to cast with insufficient mastery
+       
+    +   Material Cost (RSH): single potion/ingredient for ALCH/INGR.  single parent scroll for SCR.  nothing for other item types.  only for actor magic casters.
+        (RSH): allow an explicit override of BoundObject/LL form + count.  make 'Parent Form' an option for ENCH items.
+                if item has Uses, decrement by only one use (so items could be given more than one use).
+        (RSH) NOTE: IsAbleToUse callback can override the ability to cast with insufficient materials 
+        
+    +   Cooldown: 24 game hours for GPW, none for all other types.  only for actor magic casters.
+        (RSH): allow custom cooldown, in game seconds.  use zero for magic items with no cooldown.
+        (RSH): flag to make cooldown start from removal of last Active Effect rather than application of first (for persistent magic items)
+        (RSH) NOTE: IsAbleToUse callback can override the ability to cast under an active cooldown
+       
+    +   XP Gain: per use.  single use of primary school skill, for SPL & PSN.  single use of secondary Alchemy skill for INGR.
+        (RSH): add XP gain multiplier and two skill use indices (one for cast, one for hit), for all magic items.  use invalid indices for magic items that normally don't grant XP
+        (RSH): Add a flag for use of progressively diminishing XP if item used repeatedly
+        
+    +   Silence: Prevents casting of SPL,PSN,GPW,LPW
+        +   FLAG: ImmuneToSilence, SPEL only, but only SPEL is subject to silence in the first place
+    
+    +   IsAbleToUse Callback(RSH): returns true/false if spell may be used.  overrides all other CanUse tests
+        For some types of magic (e.g. diseases, abilities, bound ench) the target is available as a parameter
+            
+    +   ApplyUseageCost Callback(RSH): applies misc useage cost.  supplemental to Magicka,Fatigue,Material,Cooldown, and XP. 
+        takes time elapsed and time since last call as arguments, to accomodate deferred costs
+        
+    +   Deferred Costs (RSH): 
+        +   Flag to apply OnUse costs (Magicka,Fatigue,Material,OnUse XP gain) evenly over duration rather than once on use.
+            Will need to invoke ApplyUseageCost callback every frame.
+ 
++   Casting,Use:
+    +   FLAG: Edible (ALCH, INGR only)
+    
+    +   Casting Animation: determined by school for SPL,GPW,LPW.  statically determined for WEP,SCR,STF,ALCH,ENCH
+        (RSH): allow spell to override casting animation for SPL,GPW,LPW.  Possibly STF,SCR as well.
+                possible complications with 1st person casting?
+                possibly better left as a member of the MagicSchool object?
+    +   Casting Speed:  constant, determined by animation
+        (RSH): scale by specific factor for for SPL,GPW,LPW.  Possibly STF,SCR as well.
+                possibly incorporate a new actor value?
+                speeds up casting animation & associated AFX/VFX, therefore also affects charging & recast rates
+                
+    +   Chargeable/Recastable (RSH):  whether or not magic item may be charged or recast
+            Includes seperate factors for each significant aspect of charging, so that magnitude might be changeable but not duration, etc.
+
+    +   Casting Effectiveness: applied to player only.  Factor from worn armor, modified by armor skill & fatigue ratio
+        (RSH): extend to all actors, controllable by some gmst as it might break expectations for NPC casting behavior
+        +   (RSH): implement CastingEffectiveness stat. controllable by some gmst in case someone used the stat in a mod for another purpose
+        +   (RSH): add sneak bonuses to effectiveness if caster is undetected, again controlled by gmsts
+    
+    +   Use Callback(RSH): hook for useage events (may need seperate warmup, charge, cast, cooldown events for uses involving animation)
+    
+    +   Persistence: ABL, DIS, APP do not expire, so their durations are universally(?) ignored
+        NOTE: if the 'apply costs evenly' flag is set, then the duration *is* used for that
+        +   (RSH): allow an override flag that reproduces this behavior.
+        
++   Targeting:
+    +   Subtlety(RSH): chance that casting the spell won't raise target awareness?  that it won't count as an attack?
+        This is a tall order; the only effect spellcasting itself has on detection is from the light generated.
+        Perhaps in some other version.
+        
+    +   Selective Target(RSH, base component): targeting info for this effect
+        
+    +   Magic Item Resistance: resistance value - 'Resist Poison' for PSN & hostile ALCH, 'Resist Disease' for DSE, 'Resist Magic' for SPL, WEP, STF, SCL, possibly LPW, GPW?
+        Not an aggregate property.  Only for hostile effects not cast on self.
+        (RSH): add explicit override, set appropriate default value in constructors
+        (RSH): add option for 'Atomic Resistance', a la diseases.
+        (RSH): add a 'Penetration' value to directly negate points in Reflection, Aborption, & Magic Item Resistance
+        +   Reflection, Absorption: for SPL, WEP, STF, SCR only, possibly GPW, LPW?  Can be switched off with FLAG: NoReflectAbsorb.  Only for hostile effects not cast on self.
+            (RSH): Extend mechanic & flag to all castable magic types, if not already
+        +   FLAG: ScriptAlwaysApplies: applicable scripted effects ignore all resistance, reflection, aborption
+    
+    +   FLAG: Use Dummy Target (RSH): create a dummy target ref is non is found for touch/target spell.  
+                                ref must pass all normal "is target valid" checks, so it won't be viable for effects that require actors.
+                                ref is destroyed when all effects expire, or immediately if no effects are actually applied to it.
+    +   FLAG: TouchExplodesWOTarget: SPEL only.  (RSH): expand to SCR.
+    +   FLAG: TargetExplodesWOTarget(RSH): set by default for all types
+    +   FLAG: AOEIgnoresLOS: SPEL only, explosions disregard walls & other solid objects.  expand to ENCH at least, potentially all.
+    +   FLAG: AOEIgnoresCaster(RSH): explosions will not affect caster, set by default for all types
+
+    +   AOE Spread: each effect item is applied independently to all targets within area upon detonation of spell
+        (RSH): allow effects to attenuate gradually as they approach max area, rather than a sharp cutoff
+                configurable attentuation, backed up by suitable game settings. 
+
++   Projectile: uses projectile settings of strongest OnTarget effect, and gmsts for bolt effects
+    +   (RSH): overrides for projectile type, speed, and explodes with force values, along with NoAutoCalc flag
+    
+    +   Projectile Count(RSH): create specified number of projectiles (default 1), with total effectiveness evenly spread across them
+    
+    +   Projectile Homing(RSH): projectile homes in on current combat target of caster (or corsshair target if player).  scaleable turn radius.
+            +   Fixed Target: projectile remembers initial target
+            +   Variable Target: projectile can switch targets in flight. if caster leaves combat or player crosshair doesn't provide a valid world coordinate,
+                projectile will continue in a straight line as normal.
+                
+    +   Projectile Bounding(RSH): Projectile bounces off of solid objects.  each bounce costs a scableable amount of effectiveness.
+
++   Magic Groups:
+    +   MagicGroupList(RSH, base component): list of all magic groups to which this item belongs, along with the repective weight  
+    
++   MetaMagic:
+    +   MetaMagicList(RSH, base component): list of all metamagic objects attached to this item, along with their respective param value if applicable
+        
++	VFX & AFX: Uses effects from poison(disease) effect setting for PSN & hostile ALCH (DIS).  All other items use effects from strongest effect item.
+	(RSH): allow overrides to each field, in particular the model anf hit shader, along with corresponding NoAutoCalc flags
+    VFX:
+    +	FLAGS:	NoHitFX
+    +   FLAGS:  VFXPersist
+	+	Model
+	+	HitShader
+	+	EnchantmentShader
+	+	Light    
+    AFX:
+	+ 	Casting
+	+	Bolt
+	+	Hit
+	+	Area    
+        
+File Format Notes:
+==================
++   Copy of item name must be appended to record since the vanilla routines will overwrite the item name if they encounter an unexpected SCIT/FULL pair.
+    Actually, just don't include extraneous SCIT/FULL pairs.  Use new chunks for extended information, and SCIT only for script effects.

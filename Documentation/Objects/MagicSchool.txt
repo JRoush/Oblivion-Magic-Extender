@@ -1,0 +1,11 @@
+Magic School(RSH):
+==================
+Builtin schools are nothing but codes, they use hardcoded arrays for their other values
++   Code (same as formID for dynamic schools)
++   Actor Value - gain experience, modify spell cost, determine casting limitations
++   Name (explicit, default taken from associated AV or hardcoded array for vanilla schools) 
++   Icon (default taken from associated skill for vanilla schools) 
++   Casting Failure Sound (taken from hardcoded array for vanilla schools)  
++   Enchant Hit Sound (taken from hardcoded array for vanilla schools)
++   Enchant Draw Sound (taken from hardcoded array for vanilla schools)
++   Casting Animation?

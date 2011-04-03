@@ -94,7 +94,7 @@ public:
     MEMBER /*++/++*/ UInt32                 mgefObmeFlags; // seperate field for overriden flags
 
     // virtual method overrides - TESFormIDListView
-    _LOCAL /*010/034*/ virtual              ~EffectSetting();
+    _LOCAL /*010/034*/ virtual              ~EffectSetting(); // also overrides TESModel::~TESModel()
     _LOCAL /*01C/040*/ virtual bool         LoadForm(TESFile& file); 
     _LOCAL /*024/048*/ virtual void         SaveFormChunks();
     _LOCAL /*06C/070*/ virtual void         LinkForm();

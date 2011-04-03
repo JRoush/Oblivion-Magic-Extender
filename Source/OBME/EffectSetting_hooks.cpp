@@ -48,7 +48,9 @@ EffectSetting::EffectSetting()
 
     if (static bool runonce = true)
     {
-        // patch up Game/CS EffectSetting vtbl with methods overwritten by OBME  
+        // patch up Game/CS EffectSetting::TESForm vtbl with methods overwritten by OBME  
+        // this is necessary for compatibility with e.g. RuntimeEditorIDs, which also patches the vtbl
+        // also, it avoids having to do the reverse - patching the compiler generated vtbl with pointers to still undecoded methods
         memaddr thisvtbl = (UInt32)memaddr::GetObjectVtbl(this);
         _MESSAGE("Patching Game/CS TESFormIDListView vtbl from <%p>",thisvtbl);
         gLog.Indent();
@@ -59,17 +61,21 @@ EffectSetting::EffectSetting()
                 TESForm_Vtbl.SetVtblEntry(i*4,thisvtbl.GetVtblEntry(i*4));
                 _VMESSAGE("Patched Offset 0x%04X",i*4);
             }
-        }
-        gLog.Outdent();
+        }        
+        // replace Game/CS RTTI info for EffectSetting::TESForm with compiler-generated RTTI
+        TESForm_Vtbl.SetVtblEntry(-4,thisvtbl.GetVtblEntry(-4));
+        _MESSAGE("Patching RTTI info",thisvtbl);
+        gLog.Outdent(); 
         runonce  =  false;
     }
 
-    // replace compiler-generated vtbls with existing game/CS vtbls
+    // replace compiler-generated EffectSetting::TESForm vtbl with existing game/CS vtbl
+    // no known reason to replace other vtbls; I don't think any other mods patch them, and they are fully decoded
     TESForm_Vtbl.SetObjectVtbl(this);    
-    TESModel_Vtbl.SetObjectVtbl(dynamic_cast<TESModel*>(this));
-    TESFullName_Vtbl.SetObjectVtbl(dynamic_cast<TESFullName*>(this));
-    TESDescription_Vtbl.SetObjectVtbl(dynamic_cast<TESDescription*>(this));
-    TESIcon_Vtbl.SetObjectVtbl(dynamic_cast<TESIcon*>(this));
+        //TESModel_Vtbl.SetObjectVtbl(dynamic_cast<TESModel*>(this));
+        //TESFullName_Vtbl.SetObjectVtbl(dynamic_cast<TESFullName*>(this));
+        //TESDescription_Vtbl.SetObjectVtbl(dynamic_cast<TESDescription*>(this));
+        //TESIcon_Vtbl.SetObjectVtbl(dynamic_cast<TESIcon*>(this));
 
     // game constructor uses some odd initialization values
     // NOTE: be *very* careful about changing default initializations

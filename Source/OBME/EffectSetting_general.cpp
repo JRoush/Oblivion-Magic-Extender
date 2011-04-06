@@ -37,7 +37,9 @@ struct EffectSettingObmeChunk   // OBME chunk
     MEMBER /*08*/ UInt32        effectHandler;      // effect handler code
     MEMBER /*0C*/ UInt32        mgefObmeFlags;      // bitmask
     MEMBER /*10*/ UInt32        _mgefParamB;        // [deprecated, must be 0]
-    MEMBER /*14*/ UInt32        reserved14[7];
+    MEMBER /*14*/ UInt32        costCallback;       // cost callback script formID
+    MEMBER /*18*/ float         dispelFactor; 
+    MEMBER /*1C*/ UInt32        reserved[5];
 };
 struct EffectSettingDataChunk   // DATA chunk
 {// size 40
@@ -527,6 +529,18 @@ bool EffectSetting::LoadForm(TESFile& file)
                 TESFileFormats::ResolveModValue(mgefParam,file,TESFileFormats::kResType_ActorValue); // param is a modified avCode
         }
         ehnd = 0;
+        // cost callback, dispel factor
+        if (loadVersion < MAKE_VERSION(2,0,0,0))
+        {
+            costCallback = 0;
+            dispelFactor = 1.0;
+        }
+        else
+        {
+            TESFileFormats::ResolveModValue(obme.costCallback,file,TESFileFormats::kResType_FormID);
+            costCallback = (Script*)obme.costCallback;
+            dispelFactor = obme.dispelFactor;
+        }
     }  
 
     // clean up temporart dynamic objects
@@ -567,6 +581,8 @@ void EffectSetting::SaveFormChunks()
         obme.obmeRecordVersion = OBME_VERSION(OBME_MGEF_VERSION);
         obme.effectHandler = GetHandler().HandlerCode();
         obme.mgefObmeFlags = mgefObmeFlags;
+        obme.costCallback = costCallback ? ((TESForm*)costCallback)->formID : 0;
+        obme.dispelFactor = dispelFactor;
         // set resolution info (deprecated, kept only for convenience with TES4Edit)
         if (mgefFlags & (kMgefFlag_UseWeapon | kMgefFlag_UseArmor | kMgefFlag_UseActor))
         {
@@ -684,6 +700,13 @@ void EffectSetting::LinkForm()
     // handler (includes mgefParam)
     GetHandler().LinkHandler(); // link handler object
 
+    // cost callback
+    // TODO: because Script is not yet defined in COEF, the normal dynamic cast check on the form pointer is omitted.
+    costCallback = (Script*)TESForm::LookupByFormID((UInt32)costCallback);
+    #ifndef OBLIVION
+    if (costCallback) ((TESForm*)costCallback)->AddCrossReference(this);
+    #endif
+
     // set linked flag
     formFlags |= kFormFlags_Linked;
 }
@@ -784,6 +807,14 @@ void EffectSetting::CopyFrom(TESForm& copyFrom)
     SetHandler(MgefHandler::Create(mgef->GetHandler().HandlerCode(),*this));
     GetHandler().CopyFrom(mgef->GetHandler());   // manages CrossRefs for mgefParam
     mgefParam = mgef->mgefParam;    // handler only copies if it uses the param
+
+    // cost callback & dispel factor
+    #ifndef OBLIVION
+    if (costCallback) ((TESForm*)costCallback)->RemoveCrossReference(this);
+    if (mgef->costCallback) ((TESForm*)mgef->costCallback)->AddCrossReference(this);
+    #endif
+    costCallback = mgef->costCallback;
+    dispelFactor = mgef->dispelFactor;
     
     // assign a formID for non-temporary objects that don't already have one
     if ((~formFlags & kFormFlags_Temporary) && formID == 0 && TESDataHandler::dataHandler)
@@ -893,6 +924,10 @@ bool EffectSetting::CompareTo(TESForm& compareTo)
     if (GetHandler().CompareTo(mgef->GetHandler())) return BoolEx(90);
     if (mgefParam != mgef->mgefParam) return BoolEx(90);
 
+    // cost callback & dispel factor
+    if (costCallback != mgef->costCallback) return BoolEx(100);
+    if (dispelFactor != mgef->dispelFactor) return BoolEx(101);
+
     return false;
 }
 #ifndef OBLIVION
@@ -932,6 +967,9 @@ void EffectSetting::RemoveFormReference(TESForm& form)
 
     // handler + mgefParam
     GetHandler().RemoveFormReference(form);
+
+    // cost callback
+     if (&form == (TESForm*)costCallback) costCallback = 0;
 }
 bool EffectSetting::FormRefRevisionsMatch(BSSimpleList<TESForm*>* checkinList)
 {
@@ -947,11 +985,11 @@ void EffectSetting::GetRevisionUnmatchedFormRefs(BSSimpleList<TESForm*>* checkin
 }
 #endif
 // methods: debugging
-BSStringT EffectSetting::GetDebugDescEx()
+BSStringT EffectSetting::GetDebugDescEx() const
 {
     // potentially inefficient, but worth it for the ease of use
     BSStringT desc;
-    GetDebugDescription(desc);
+    (const_cast<EffectSetting*>(this))->GetDebugDescription(desc);
     return desc;
 }
 // methods: serialization
@@ -995,6 +1033,15 @@ void EffectSetting::UnlinkForm()
     
     // handler (includes mgefParam)
     GetHandler().UnlinkHandler(); // unlink handler object
+
+    // cost callback
+    if (costCallback)
+    {
+        #ifndef OBLIVION    
+        ((TESForm*)costCallback)->RemoveCrossReference(this); 
+        #endif
+        costCallback = (Script*)((TESForm*)costCallback)->formID;
+    }
 
     // set linked flag
     formFlags &= ~kFormFlags_Linked;
@@ -1238,6 +1285,8 @@ bool EffectSetting::RequiresObmeMgefChunks()
         kReqOBME_CounterEffects,
         kReqOBME_BeneficialFlag,
         kReqOBME_Handler,
+        kReqOBME_CostCallback,
+        kReqOBME_DispelFactor,
     };
 
     // mgefCode - must be vanilla
@@ -1297,6 +1346,12 @@ bool EffectSetting::RequiresObmeMgefChunks()
     bool handlerNoMatch = defHandler->CompareTo(GetHandler());
     delete defHandler;
     if (handlerNoMatch) return BoolEx(kReqOBME_Handler);
+
+    // cost callback must be null
+    if (costCallback) return BoolEx(kReqOBME_CostCallback);
+
+    // dispel factor must be 1.0
+    if (dispelFactor != 1.0) return BoolEx(kReqOBME_DispelFactor);
 
     return BoolEx(kOBMENotRequired);
 }

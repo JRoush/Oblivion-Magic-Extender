@@ -8,7 +8,8 @@
 // Generated from the TEXTINCLUDE 2 resource.
 //
 #include "afxres.h"
-#include "API/CSDialogs/DialogConstants.h"
+#include "API/CSDialogs/DialogConstants.h"
+
 /////////////////////////////////////////////////////////////////////////////
 #undef APSTUDIO_READONLY_SYMBOLS
 
@@ -100,7 +101,7 @@ BEGIN
     CONTROL         "No Duration",IDC_MGEF_FLAGEX_NODURATION,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,335,50,55,12
     CONTROL         "No Magnitude",IDC_MGEF_FLAGEX_NOMAGNITUDE,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,335,23,57,12
     CONTROL         "No Area",IDC_MGEF_FLAGEX_NOAREA,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,335,37,55,12
-    CONTROL         "No Proj. Range",IDC_MGEF_FLAGEX_NOPROJRANGE,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,335,180,61,12
+    CONTROL         "Proj. Range",IDC_MGEF_FLAGEX_HASPROJRANGE,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,335,180,61,12
     COMBOBOX        IDC_MGEF_PROJECTILETYPE,277,226,116,94,CBS_DROPDOWNLIST | CBS_SORT | WS_VSCROLL | WS_TABSTOP
     RTEXT           "Projectile Type",IDC_STATIC,216,226,51,12,SS_CENTERIMAGE
     RTEXT           "Projectile Speed",IDC_STATIC,221,244,54,12,SS_CENTERIMAGE

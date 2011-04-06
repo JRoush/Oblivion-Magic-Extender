@@ -432,8 +432,8 @@ void EffectSetting::SetInDialog(HWND dialog)
     {
         // Cost
         TESDialog::SetDlgItemTextFloat(dialog,IDC_MGEF_BASECOST,baseCost);
-        TESDialog::SetDlgItemTextFloat(dialog,IDC_MGEF_DISPELFACTOR,0/*TODO*/);
-        TESComboBox::SetCurSelByData(GetDlgItem(dialog,IDC_MGEF_COSTCALLBACK),0/*TODO*/);
+        TESDialog::SetDlgItemTextFloat(dialog,IDC_MGEF_DISPELFACTOR,dispelFactor);
+        TESComboBox::SetCurSelByData(GetDlgItem(dialog,IDC_MGEF_COSTCALLBACK),costCallback);
         // Resistance
         TESComboBox::SetCurSelByData(GetDlgItem(dialog,IDC_MGEF_RESISTVALUE),(void*)GetResistAV());
         // Hostility
@@ -527,8 +527,8 @@ void EffectSetting::GetFromDialog(HWND dialog)
     // DYNAMICS
     {
         // Cost
-        /*TODO = */ TESDialog::GetDlgItemTextFloat(dialog,IDC_MGEF_DISPELFACTOR);
-        /*TODO = */ TESComboBox::GetCurSelData(GetDlgItem(dialog,IDC_MGEF_COSTCALLBACK));
+        dispelFactor = TESDialog::GetDlgItemTextFloat(dialog,IDC_MGEF_DISPELFACTOR);
+        costCallback = (Script*)TESComboBox::GetCurSelData(GetDlgItem(dialog,IDC_MGEF_COSTCALLBACK));
         // Hostility
         SetHostility((UInt8)TESComboBox::GetCurSelData(GetDlgItem(dialog,IDC_MGEF_HOSTILITY)));
         // Mag, Dur, Area, Range

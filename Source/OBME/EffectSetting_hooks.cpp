@@ -42,7 +42,8 @@ memaddr TESDataHandler_AddForm_JumpPatch        (0x0       ,0x00481D58); // entr
 
 // constructor, destructor
 EffectSetting::EffectSetting()
-: ::EffectSetting(), MagicGroupList(), effectHandler(0), mgefObmeFlags(0)
+: ::EffectSetting(), MagicGroupList(), effectHandler(0), mgefObmeFlags(0),
+ costCallback(0), dispelFactor(1.0)
 {    
     _VMESSAGE("Constructing Mgef <%p>",this);    
 
@@ -110,7 +111,7 @@ EffectSetting* EffectSettingCollection_Add_Hndl(UInt32 mgefCode, const char* nam
     EffectSetting* mgef = new EffectSetting; 
     mgef->mgefCode = mgefCode;
     EffectSettingCollection::collection.SetAt(mgefCode,mgef);  // add new effect to table
-    // mark effect as unlinked, so that Link() may be called after data handlercreation to update reference counts
+    // mark effect as unlinked, so that Link() may be called after datahandler creation to update reference counts
     // NOTE: this requires that all member initialization be in 'unlinked' values, e.g. formids instead of pointers
     mgef->formFlags &= ~TESForm::kFormFlags_Linked;
     // set editor name
@@ -267,18 +268,6 @@ void _declspec(naked) TESDataHandler_LoadMgef_Hndl(void)
         jmp     [TESDataHandler_LoadMgef_Retn._addr]
     }
 }
-void UpdateEffectItems(TESForm* form)
-{
-    // iterate through effect items & update EffectSetting* to match mgefCode
-    if (!form) return;
-    EffectItemList* efflist = dynamic_cast<EffectItemList*>(form);
-    if (!efflist) return;
-    for (EffectItemList::Node* effnode = &efflist->firstNode; effnode; effnode = effnode->next)
-    {
-        if (!effnode->data) continue;
-        effnode->data->effect = EffectSetting::LookupByCode(effnode->data->mgefCode);
-    }
-}
 void LinkDefaultEffects()
 {
     _DMESSAGE("Linking default magic effects ...");
@@ -334,27 +323,6 @@ void EffectSetting::Initialize()
         EffectSettingCollection::Reset();   // reset effect setting collection        
         TESDataHandler::dataHandler = dataHandler;  // restore the global data handler  
         LinkDefaultEffects(); // Link newly created effects to other default objects
-        // update the EffectSetting* on any magic items already created        
-        if (dataHandler)
-        {
-            for(BSSimpleList<SpellItem*>::Node* node = &dataHandler->spellItems.firstNode; node; node = node->next)
-            {
-                if (!node->data) continue;
-                UpdateEffectItems(node->data);
-            }
-            for(BSSimpleList<EnchantmentItem*>::Node* node = &dataHandler->enchantmentItems.firstNode; node; node = node->next)
-            {
-                if (!node->data) continue;
-                UpdateEffectItems(node->data);
-            }
-            if (dataHandler->objects)
-            {
-                for(TESObject* object = dataHandler->objects->first; object; object = object->next)
-                {
-                    UpdateEffectItems(object);
-                }
-            }
-        } 
     }
 }
 

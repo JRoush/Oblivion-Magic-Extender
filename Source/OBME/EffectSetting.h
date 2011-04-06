@@ -7,6 +7,9 @@
 #include "API/Magic/EffectSetting.h"
 #include "OBME/MagicGroup.h"
 
+// argument classes
+class   Script;
+
 namespace OBME {
 
 // argument classes from OBME
@@ -28,7 +31,7 @@ public:
         kMgefObmeFlag__ParamFlagA           = /*02*/ 0x00000004, // [deprecated, must be 0]
         kMgefObmeFlag_Beneficial            = /*03*/ 0x00000008, // part of the new three-state hostilities        
         kMgefObmeFlag__ParamFlagB           = /*10*/ 0x00010000, // [deprecated, must be 0]
-        kMgefObmeFlag_NoProjRange           = /*11*/ 0x00020000, //
+        kMgefObmeFlag_HasProjRange          = /*11*/ 0x00020000, //
         kMgefObmeFlag_AtomicResistance      = /*12*/ 0x00040000, //
         kMgefObmeFlag__ParamFlagC           = /*13*/ 0x00080000, // [deprecated, must be 0]
         kMgefObmeFlag__ParamFlagD           = /*14*/ 0x00100000, // [deprecated, must be 0]
@@ -75,7 +78,7 @@ public:
         kMgefFlagShift__ParamFlagA          = 0x22, // [deprecated, must be 0]
         kMgefFlagShift_Beneficial           = 0x23, 
         kMgefFlagShift__ParamFlagB          = 0x30, // [deprecated, must be 0]
-        kMgefFlagShift_NoProjRange          = 0x31,
+        kMgefFlagShift_HasProjRange         = 0x31,
         kMgefFlagShift_AtomicResistance     = 0x32,        
         kMgefFlagShift__ParamFlagC          = 0x33, // [deprecated, must be 0]
         kMgefFlagShift__ParamFlagD          = 0x34, // [deprecated, must be 0]
@@ -92,6 +95,8 @@ public:
     //     /*++/++*/ MagicGroupList
     MEMBER /*++/++*/ MgefHandler*           effectHandler;      
     MEMBER /*++/++*/ UInt32                 mgefObmeFlags; // seperate field for overriden flags
+    MEMBER /*++/++*/ Script*                costCallback;
+    MEMBER /*++/++*/ float                  dispelFactor;
 
     // virtual method overrides - TESFormIDListView
     _LOCAL /*010/034*/ virtual              ~EffectSetting(); // also overrides TESModel::~TESModel()
@@ -115,7 +120,7 @@ public:
     #endif
 
     // methods: debugging
-    _LOCAL BSStringT        GetDebugDescEx();
+    _LOCAL BSStringT        GetDebugDescEx() const;
 
     // methods: serialization
     _LOCAL void             UnlinkForm();   // reeverse of LinkForm() - converts all pointers to formIDs/codes/etc and decr all CS cross references
@@ -143,6 +148,10 @@ public:
     _LOCAL static UInt32    GetUnusedDynamicCode(); // checks table & returns an unused dynamic mgef code
     _LOCAL static UInt32    GetUnusedStaticCode(); // checks table & returns an unused static mgef code
     _LOCAL void             ReplaceMgefCodeRef(UInt32 oldMgefCode, UInt32 newMgefCode); // replace all uses of old code with new code
+
+    // convenience methods - explicit conversion to OBME::EffectSetting
+    INLINE static EffectSetting*    LookupByCode(UInt32 mgefCode) {return (EffectSetting*)EffectSettingCollection::LookupByCode(mgefCode);}
+    INLINE static EffectSetting*    LookupByCodeString(const char* mgefCodeString) {return (EffectSetting*)EffectSettingCollection::LookupByCodeString(mgefCodeString);} 
 
     // methods: effect handler
     _LOCAL MgefHandler&             GetHandler();

@@ -1,0 +1,126 @@
+// Microsoft Visual C++ generated resource script.
+//
+#include "EffectItem.rc.h"
+
+#define APSTUDIO_READONLY_SYMBOLS
+/////////////////////////////////////////////////////////////////////////////
+//
+// Generated from the TEXTINCLUDE 2 resource.
+//
+#include "afxres.h"
+#include "API/CSDialogs/DialogConstants.h"
+
+/////////////////////////////////////////////////////////////////////////////
+#undef APSTUDIO_READONLY_SYMBOLS
+
+/////////////////////////////////////////////////////////////////////////////
+// English (U.S.) resources
+
+#if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_ENU)
+#ifdef _WIN32
+LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
+#pragma code_page(1252)
+#endif //_WIN32
+
+#ifdef APSTUDIO_INVOKED
+/////////////////////////////////////////////////////////////////////////////
+//
+// TEXTINCLUDE
+//
+
+1 TEXTINCLUDE 
+BEGIN
+    "EffectItem.rc.h\0"
+END
+
+2 TEXTINCLUDE 
+BEGIN
+    "#include ""afxres.h""\r\n"
+    "#include ""API/CSDialogs/DialogConstants.h""\r\0"
+END
+
+3 TEXTINCLUDE 
+BEGIN
+    "\r\0"
+END
+
+#endif    // APSTUDIO_INVOKED
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Dialog
+//
+
+IDD_EFIT DIALOGEX 0, 0, 454, 308
+STYLE DS_SETFONT | DS_MODALFRAME | DS_CENTER | WS_MINIMIZEBOX | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "Effect Item"
+FONT 8, "MS Sans Serif", 0, 0, 0x1
+BEGIN
+    RTEXT           "Effect",-1,7,6,33,12,SS_CENTERIMAGE
+    LTEXT           "Effect Total",-1,11,257,42,10
+    COMBOBOX        IDC_EFIT_EFFECT,47,6,132,94,CBS_DROPDOWNLIST | CBS_AUTOHSCROLL | CBS_SORT | WS_VSCROLL | WS_TABSTOP
+    COMBOBOX        IDC_EFIT_RANGE,81,25,66,45,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    EDITTEXT        IDC_EFIT_AREA,101,57,44,12,ES_RIGHT | ES_AUTOHSCROLL | ES_NUMBER
+    EDITTEXT        IDC_EFIT_DURATION,101,72,44,12,ES_RIGHT | ES_AUTOHSCROLL | ES_NUMBER
+    EDITTEXT        IDC_EFIT_MAGNITUDE,101,87,44,12,ES_RIGHT | ES_AUTOHSCROLL | ES_NUMBER
+    RTEXT           "5",IDC_EFIT_EFFECTCOST,77,257,35,10
+    DEFPUSHBUTTON   "OK",1,335,286,50,14
+    PUSHBUTTON      "Cancel",2,397,286,50,14
+    RTEXT           "Range",-1,41,25,33,12,SS_CENTERIMAGE
+    RTEXT           "Area",-1,61,57,33,12,SS_CENTERIMAGE
+    RTEXT           "Duration",-1,61,72,33,12,SS_CENTERIMAGE
+    RTEXT           "Magnitude",-1,61,87,33,12,SS_CENTERIMAGE
+    LTEXT           "Effect Name",IDC_EFIT_NAMELABEL,228,22,41,10
+    EDITTEXT        IDC_EFIT_NAME,276,20,161,12,ES_AUTOHSCROLL
+    LTEXT           "School",IDC_EFIT_SCHOOLLABEL,231,54,41,10
+    COMBOBOX        IDC_EFIT_SCHOOL,279,52,72,94,CBS_DROPDOWNLIST | CBS_SORT | WS_VSCROLL | WS_TABSTOP
+    GROUPBOX        "Auto-Calculated Costs",-1,7,231,111,69
+    LTEXT           "Spell Total",-1,11,273,42,10
+    RTEXT           "5",IDC_EFIT_MAGICITEMCOST,77,273,35,10
+    LTEXT           "Effect Base",-1,11,244,42,10
+    RTEXT           "5",IDC_EFIT_EFFECTBASECOST,77,244,35,10
+    LTEXT           "Spell Level",IDC_EFIT_MAGICITEMMASTERYLABEL,11,287,42,10
+    RTEXT           "Novice",IDC_EFIT_MAGICITEMMASTERY,61,287,51,10
+    LTEXT           "Visuals Effect",-1,223,70,54,10
+    COMBOBOX        IDC_EFIT_VFX,279,68,132,94,CBS_DROPDOWNLIST | CBS_AUTOHSCROLL | CBS_SORT | WS_VSCROLL | WS_TABSTOP
+    GROUPBOX        "Effect Handler",IDC_EFIT_HANDLERCONTAINER,7,110,181,61
+    EDITTEXT        IDC_EFIT_PROJRANGE,101,42,44,12,ES_RIGHT | ES_AUTOHSCROLL | ES_NUMBER
+    GROUPBOX        "Overrides",IDC_EFIT_OVERRIDES,217,6,230,240
+    CONTROL         "Projectile Range",IDC_EFIT_PROJRANGEENABLE,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,35,42,66,12
+END
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// DESIGNINFO
+//
+
+#ifdef APSTUDIO_INVOKED
+GUIDELINES DESIGNINFO 
+BEGIN
+    IDD_EFIT, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 447
+        TOPMARGIN, 6
+        BOTTOMMARGIN, 300
+    END
+END
+#endif    // APSTUDIO_INVOKED
+
+#endif    // English (U.S.) resources
+/////////////////////////////////////////////////////////////////////////////
+
+
+
+#ifndef APSTUDIO_INVOKED
+/////////////////////////////////////////////////////////////////////////////
+//
+// Generated from the TEXTINCLUDE 3 resource.
+//
+
+
+/////////////////////////////////////////////////////////////////////////////
+#endif    // not APSTUDIO_INVOKED
+

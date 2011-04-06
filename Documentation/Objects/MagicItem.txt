@@ -38,6 +38,7 @@ providing different default values.
     +   Icon:  For menu display w/ ALCH,INGR.  Uses icon of strongest item for SPEL,ENCH.
                 (RSH): Allow Icon for SPEL,ENCH; flag to use icon of strongest effect
     +   Description(RSH): allow modders (and potentially players) to set a description for a magic item
+    +   FLAG: MaskNameBySkill(RSH): replace name/icon with question marks depending on skill level, a la ingredients
         
 +   Hostility: affects AI, interaction with RSH Dispel, etc.  For ENCH/SPEL implemented with cached hostile effect count, for ALCH/INGR uses explicit counting.
     (RSH): Allow explicit 3-state hostility; flag to use aggregate hostility of effect items as above.

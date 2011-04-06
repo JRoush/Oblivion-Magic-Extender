@@ -1,0 +1,43 @@
+Effect Item
+===========
+Size of EffectItem and EffectItemExtra are extended in OBME.  This requires hooks into game code
+for the ctor, dtor, clone, copy, & compare functions (as it would with any class).  It also requires
+manually patching the AddEffectItem obse code and friends, because these functions actually allocate
+& initialize new effect items manually instead of using the game code.  
++	EffectCode
++	Magnitude
++	Duration
++	Area
++	Range
++   ActorValue - for ValueModifierEffects with the UseSkill or UseAttribute flags.  
+    Still used for thtis, but all other handler-specific data is stored in the EffectHandler object
++	EffectItemExtra, aka "ScriptEffectInfo" - overrides for properties of effect settings:
+    +	ScriptFormID - for ScriptEffects. 
+        Still used for thtis, but all other handler-specific data is stored in the EffectHandler object
+    +	School
+    +	Name - include a flag (RSH) indicating that this overrides *entire* description, not just name.
+    +	VFXcode - mgefCode of magic effect from which to steal visual (perhaps audio & 3D) effects
+    +	Hostile - boolean value, only lowest 8 bits of this word are initialized,saved,and loaded
+    +   Flags(RSH) - remaining mgef+obme flags (other than hostile) might be overridden (may require more than 32 bits)
+        +   FLAG: Spellmaking, Enchanting, Alchemy: flags to prevent effect from being know to player in alters or alchemy menu  
+                use the Alchemy flag to mimic the defautl behavior of ingredient effects at low skill levels
+                along with magic item flag to mask name/icon at low skill levels
+    +   OverrideMask(RSH) - bitmask of overriden mgefFlags, ObmeFlags, and overriden fields (may require more than 32 bits)   
+    +   BaseCost(RSH) - override base magicka cost for parent effect in autocalc
+    +   Icon(RSH)
+    +   ResistAV(RSH)
+    +   OverallCost(RSH) - overrides autocalc cost for single effect item
++	MagickaCost(cached) - set to -1.0 when cache is invalidated
++   ParentForm(RSH) - magic item / sigil stone to which this item belongs
++   EffectHandler(RSH):  pointer to EffectHandler structure that stores handler specific data & overrides.  manages CS subdialogs and in-game menus
++   Projectile Range(RSH) - projectile range (in feet).  used only if NoMaxRange flag is false
+
+File Format Notes:
+==================
++	items for unrecognized effects are ignored.  
++   Even if a EffectItemList has no effects left, it is still loaded, but will cause a CTD if added to actor (just player?)
++   bad EFITs cause problems since they disrupt the indexing of effect items in the magic item (see notes on Active Effects).
++	extra SCIT blocks are ignored, but missing SCIT blocks corrupt the following data.  Always give SEFF an SCIT block. FULL name override is optional
++   a seperator chunk is necessary at end of effect list
++   provide version info for every effect item ?  needed for v1, since the effect item chunks had variable formats.  try to avoid this in v2 by using 
+    a seperate handler-specific chunk

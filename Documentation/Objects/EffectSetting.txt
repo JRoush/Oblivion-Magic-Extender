@@ -21,7 +21,6 @@ Effect Setting:
     
 +   School:    
 	+	School - school code (formID, for extended schools)
-    +   SchoolEx(RSH) - cached pointer to a MagicSchool object that represents the given school
     
 +   Display:
     +	Name: aka simple name, plain text used in CS and in-game if no qualified name specified 
@@ -50,8 +49,8 @@ Effect Setting:
         
 +	Cost:
 	+	Base Cost - multiplier to calculated magicka cost
-    +   GetCost Callback(RSH) - used to override magicka cost calc
-    +   SetCost Callback(RSH) - used to override inverse magicka cost calc
+    +   Cost Callback(RSH) - used to override magicka cost calc {resultvalue, parent form, effect item, caster, base, duration, magnitude, area, range, handler, skill, magicka)
+                            where resultvalue is an enum constant determining field to be calculated
     +   Dispel Factor(RSH) - multiplies default dispelling factor (which is set by a game setting)    
 +	Duration:
     +	FLAGS:	NoDuration

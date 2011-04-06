@@ -15,8 +15,7 @@ Add a hardcoded type for each new MagicItem property that should affect magicka 
 
 +   FLAG: AdjustCost (for efficiency)
 +   Cost MultBase, MultMult: new cost = old cost * (MultBase + MultMult*param), use param=0 if no param
-+   GetCost Callback: used to override magicka cost calc
-+   SetCost Callback: used to override inverse magicka cost calc
++   Cost Callback: used to override magicka cost calc {direction, parent form, caster, magicka}
 
 +   FLAG: HasParam - magic item can set a param for this metamagic, similar to weights with magic groups
 

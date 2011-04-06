@@ -95,8 +95,8 @@ class MgefHandler : public EffectHandler
 {
 public:
     // constructor, destructor
-    MgefHandler(EffectSetting& effect) : parentEffect(effect) {}  // initialize fields based on parent object.  NOTE: When initializing
-                                                                // members, check 'Linked' flag of parent and initialize accordingly.
+    MgefHandler(EffectSetting& effect) : parentEffect(effect) {}  // initialize fields based on parent object.  
+                                        // NOTE: When initializing members, check 'Linked' flag of parent and initialize accordingly.
     virtual ~MgefHandler() {} 
 
     // creation 
@@ -110,7 +110,7 @@ public:
 
     // copy/compare
     virtual void                CopyFrom(const MgefHandler& copyFrom);  // must incr/decr CrossRefs for mgefParam if necessary
-    virtual bool                CompareTo(const MgefHandler& compareTo); // returns false is equivalent
+    virtual bool                CompareTo(const MgefHandler& compareTo); // returns false if equivalent
 
     #ifndef OBLIVION
     // reference management in CS
@@ -144,32 +144,37 @@ class EfitHandler : public EffectHandler
 {
 public:
     // constructor, destructor
-    EfitHandler(EffectItem& item) : parentItem(item) {}
+    EfitHandler(EffectItem& item) : parentItem(item) {}  // initialize fields based on parent object.  
+                                    // NOTE: When initializing members, check 'Linked' flag of parent and initialize accordingly.
     virtual ~EfitHandler() {}
 
     // creation
-    static EfitHandler*   Create(UInt32 handlerCode, EffectItem& item); // create polymorphic instance based on handler code      
-    
+    static EfitHandler*         Create(UInt32 handlerCode, EffectItem& item); // create polymorphic instance based on handler code. 
+    void                        SetParentItemDefaultFields(); // initialize actorVal, script formid on parent effect item & incr refs accordingly
 
     // serialization
-    virtual bool                LoadHandlerChunk(TESFile& file, UInt32 RecordVersion) {return 0;}
-    virtual bool                SaveHandlerChunk() {return 0;}
-    virtual void                LinkHandler() {}
+    virtual bool                LoadHandlerChunk(TESFile& file, UInt32 RecordVersion);
+    virtual void                SaveHandlerChunk();
+    virtual void                LinkHandler();
+    virtual void                UnlinkHandler();
 
     // copy/compare
-    virtual void                CopyFrom(const EfitHandler& copyFrom) {}
-    virtual bool                CompareTo(const EfitHandler& compareTo) {return 0;} // returns false is equivalent
+    virtual void                CopyFrom(const EfitHandler& copyFrom); // must incr/decr CrossRefs for actorVal, scriptFormID if necessary
+    virtual bool                CompareTo(const EfitHandler& compareTo); // returns false if equivalent
 
-    // child Menu/Dialog for Game/CS editing
+    // gmae/CS specific
     #ifdef OBLIVION
     // TODO: menu interaction methods, similar to the dialog interaction methods
     #else
-    virtual void                InitializeDialog(HWND dialog) {}
-    virtual INT                 DialogTemplateID() {return 0;} // ID of dialog template resource 
-    virtual bool                DialogMessageCallback(HWND dialog, UINT uMsg, WPARAM wParam, LPARAM lParam, LRESULT& result) {return 0;}
-    virtual void                SetInDialog(HWND dialog) {}
-    virtual void                GetFromDialog(HWND dialog) {}
-    virtual void                CleanupDialog(HWND dialog) {}
+    // reference management in CS
+    virtual void                RemoveFormReference(TESForm& form); // removes ref to given form.  must handle mgefParam if necessary
+    // child dialog in CS
+    virtual INT                 DialogTemplateID(); // ID of dialog template resource 
+    virtual void                InitializeDialog(HWND dialog);
+    virtual bool                DialogMessageCallback(HWND dialog, UINT uMsg, WPARAM wParam, LPARAM lParam, LRESULT& result);
+    virtual void                SetInDialog(HWND dialog);
+    virtual void                GetFromDialog(HWND dialog);
+    virtual void                CleanupDialog(HWND dialog);
     #endif
 
 protected:
@@ -177,13 +182,13 @@ protected:
     EffectItem&     parentItem;
 };
 
-template <UInt32 ehCode> class GenericEfitHandler : public EfitHandler
+template <UInt32 ehCode> class NullEfitHandler : public EfitHandler
 {
 public:
     // constructor
-    GenericEfitHandler(EffectItem& item) : EfitHandler(item) {}
+    NullEfitHandler(EffectItem& item) : EfitHandler(item) {}
     // creation 
-    static EfitHandler*         Make(EffectItem& item) {return new GenericEfitHandler(item);}  // create instance of this type
+    static EfitHandler*         Make(EffectItem& item) {return 0;}  // generic Efit handler is none at all
     // handler code
     virtual UInt32              HandlerCode() const {return ehCode;}
 };

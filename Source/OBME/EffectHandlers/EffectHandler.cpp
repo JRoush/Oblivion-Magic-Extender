@@ -1,6 +1,7 @@
 #include "Utilities/Memaddr.h"
 
 #include "OBME/EffectSetting.h"
+#include "OBME/EffectItem.h"
 #include "OBME/EffectHandlers/EffectHandler.h"
 #include "OBME/EffectHandlers/ValueModifierEffect.h"
 #include "OBME/EffectHandlers/AssociatedItemEffect.h"
@@ -49,37 +50,37 @@ public:
     HandlerMap()
     {
         // don't put output statements here, as the output log may not yet be initialized   
-        insert<GenericMgefHandler<EffectHandler::kACTV>,GenericEfitHandler<EffectHandler::kACTV>,ActiveEffect>(EffectHandler::kACTV,"< Default >");
-        insert<ScriptMgefHandler,ScriptEfitHandler,ScriptEffect>(EffectHandler::kSEFF,"Scripted");
-        insert<GenericMgefHandler<EffectHandler::kSUDG>,GenericEfitHandler<EffectHandler::kSUDG>,ActiveEffect>(EffectHandler::kSUDG,"Sun Damage");
-        insert<GenericMgefHandler<EffectHandler::kDEMO>,GenericEfitHandler<EffectHandler::kDEMO>,ActiveEffect>(EffectHandler::kDEMO,"Demoralize");
-        insert<GenericMgefHandler<EffectHandler::kCOCR>,GenericEfitHandler<EffectHandler::kCOCR>,ActiveEffect>(EffectHandler::kCOCR,"Command Creature");
-        insert<GenericMgefHandler<EffectHandler::kCOHU>,GenericEfitHandler<EffectHandler::kCOHU>,ActiveEffect>(EffectHandler::kCOHU,"Command Humanoid");
-        insert<GenericMgefHandler<EffectHandler::kREAN>,GenericEfitHandler<EffectHandler::kREAN>,ActiveEffect>(EffectHandler::kREAN,"Reanimate");
-        insert<GenericMgefHandler<EffectHandler::kTURN>,GenericEfitHandler<EffectHandler::kTURN>,ActiveEffect>(EffectHandler::kTURN,"Turn Undead");
-        insert<GenericMgefHandler<EffectHandler::kVAMP>,GenericEfitHandler<EffectHandler::kVAMP>,ActiveEffect>(EffectHandler::kVAMP,"Vampirism");
-        insert<GenericMgefHandler<EffectHandler::kLGHT>,GenericEfitHandler<EffectHandler::kLGHT>,ActiveEffect>(EffectHandler::kLGHT,"Light");
-        insert<DispelMgefHandler,DispelEfitHandler,DispelEffect>(EffectHandler::kDSPL,"Dispel");
-        insert<GenericMgefHandler<EffectHandler::kCURE>,GenericEfitHandler<EffectHandler::kCURE>,ActiveEffect>(EffectHandler::kCURE,"Cure");
-        insert<GenericMgefHandler<EffectHandler::kDIAR>,GenericEfitHandler<EffectHandler::kDIAR>,ActiveEffect>(EffectHandler::kDIAR,"Disintegrate Armor");
-        insert<GenericMgefHandler<EffectHandler::kDIWE>,GenericEfitHandler<EffectHandler::kDIWE>,ActiveEffect>(EffectHandler::kDIWE,"Disintegrate Weapon");
-        insert<GenericMgefHandler<EffectHandler::kLOCK>,GenericEfitHandler<EffectHandler::kLOCK>,ActiveEffect>(EffectHandler::kLOCK,"Lock");
-        insert<GenericMgefHandler<EffectHandler::kOPEN>,GenericEfitHandler<EffectHandler::kOPEN>,ActiveEffect>(EffectHandler::kOPEN,"Open");
-        insert<GenericMgefHandler<EffectHandler::kSTRP>,GenericEfitHandler<EffectHandler::kSTRP>,ActiveEffect>(EffectHandler::kSTRP,"Soul Trap");
-        insert<GenericValueModifierMgefHandler<EffectHandler::kMDAV>,GenericValueModifierEfitHandler<EffectHandler::kMDAV>,ValueModifierEffect>(EffectHandler::kMDAV,"Value Modifier");
-        insert<GenericValueModifierMgefHandler<EffectHandler::kABSB>,GenericValueModifierEfitHandler<EffectHandler::kABSB>,ValueModifierEffect>(EffectHandler::kABSB,"Absorb");
-        insert<GenericValueModifierMgefHandler<EffectHandler::kPARA>,GenericValueModifierEfitHandler<EffectHandler::kPARA>,ValueModifierEffect>(EffectHandler::kPARA,"Paralysis");
-        insert<GenericValueModifierMgefHandler<EffectHandler::kSHLD>,GenericValueModifierEfitHandler<EffectHandler::kSHLD>,ValueModifierEffect>(EffectHandler::kSHLD,"Shield");
-        insert<GenericValueModifierMgefHandler<EffectHandler::kCALM>,GenericValueModifierEfitHandler<EffectHandler::kCALM>,ValueModifierEffect>(EffectHandler::kCALM,"Calm");
-        insert<GenericValueModifierMgefHandler<EffectHandler::kFRNZ>,GenericValueModifierEfitHandler<EffectHandler::kFRNZ>,ValueModifierEffect>(EffectHandler::kFRNZ,"Frenzy");
-        insert<GenericValueModifierMgefHandler<EffectHandler::kCHML>,GenericValueModifierEfitHandler<EffectHandler::kCHML>,ValueModifierEffect>(EffectHandler::kCHML,"Chameleon");
-        insert<GenericValueModifierMgefHandler<EffectHandler::kINVI>,GenericValueModifierEfitHandler<EffectHandler::kINVI>,ValueModifierEffect>(EffectHandler::kINVI,"Invisibility");
-        insert<GenericValueModifierMgefHandler<EffectHandler::kDTCT>,GenericValueModifierEfitHandler<EffectHandler::kDTCT>,ValueModifierEffect>(EffectHandler::kDTCT,"Detect Life");
-        insert<GenericValueModifierMgefHandler<EffectHandler::kNEYE>,GenericValueModifierEfitHandler<EffectHandler::kNEYE>,ValueModifierEffect>(EffectHandler::kNEYE,"Night Eye");
-        insert<GenericValueModifierMgefHandler<EffectHandler::kDARK>,GenericValueModifierEfitHandler<EffectHandler::kDARK>,ValueModifierEffect>(EffectHandler::kDARK,"Darkness");
-        insert<GenericValueModifierMgefHandler<EffectHandler::kTELE>,GenericValueModifierEfitHandler<EffectHandler::kTELE>,ValueModifierEffect>(EffectHandler::kTELE,"Telekinesis");
-        insert<SummonCreatureMgefHandler,SummonCreatureEfitHandler,SummonCreatureEffect>(EffectHandler::kSMAC,"Summon Actor");
-        insert<BoundItemMgefHandler,BoundItemEfitHandler,BoundItemEffect>(EffectHandler::kSMBO,"Bound Item");
+        insert<GenericMgefHandler<EffectHandler::kACTV>, NullEfitHandler<EffectHandler::kACTV>, ActiveEffect>(EffectHandler::kACTV,"< Default >");
+        insert<ScriptMgefHandler,                        ScriptEfitHandler,                     ScriptEffect>(EffectHandler::kSEFF,"Scripted");
+        insert<GenericMgefHandler<EffectHandler::kSUDG>, NullEfitHandler<EffectHandler::kSUDG>, ActiveEffect>(EffectHandler::kSUDG,"Sun Damage");
+        insert<GenericMgefHandler<EffectHandler::kDEMO>, NullEfitHandler<EffectHandler::kDEMO>, ActiveEffect>(EffectHandler::kDEMO,"Demoralize");
+        insert<GenericMgefHandler<EffectHandler::kCOCR>, NullEfitHandler<EffectHandler::kCOCR>, ActiveEffect>(EffectHandler::kCOCR,"Command Creature");
+        insert<GenericMgefHandler<EffectHandler::kCOHU>, NullEfitHandler<EffectHandler::kCOHU>, ActiveEffect>(EffectHandler::kCOHU,"Command Humanoid");
+        insert<GenericMgefHandler<EffectHandler::kREAN>, NullEfitHandler<EffectHandler::kREAN>, ActiveEffect>(EffectHandler::kREAN,"Reanimate");
+        insert<GenericMgefHandler<EffectHandler::kTURN>, NullEfitHandler<EffectHandler::kTURN>, ActiveEffect>(EffectHandler::kTURN,"Turn Undead");
+        insert<GenericMgefHandler<EffectHandler::kVAMP>, NullEfitHandler<EffectHandler::kVAMP>, ActiveEffect>(EffectHandler::kVAMP,"Vampirism");
+        insert<GenericMgefHandler<EffectHandler::kLGHT>, NullEfitHandler<EffectHandler::kLGHT>, ActiveEffect>(EffectHandler::kLGHT,"Light");
+        insert<DispelMgefHandler,                        DispelEfitHandler,                     DispelEffect>(EffectHandler::kDSPL,"Dispel");
+        insert<GenericMgefHandler<EffectHandler::kCURE>, NullEfitHandler<EffectHandler::kCURE>, ActiveEffect>(EffectHandler::kCURE,"Cure");
+        insert<GenericMgefHandler<EffectHandler::kDIAR>, NullEfitHandler<EffectHandler::kDIAR>, ActiveEffect>(EffectHandler::kDIAR,"Disintegrate Armor");
+        insert<GenericMgefHandler<EffectHandler::kDIWE>, NullEfitHandler<EffectHandler::kDIWE>, ActiveEffect>(EffectHandler::kDIWE,"Disintegrate Weapon");
+        insert<GenericMgefHandler<EffectHandler::kLOCK>, NullEfitHandler<EffectHandler::kLOCK>, ActiveEffect>(EffectHandler::kLOCK,"Lock");
+        insert<GenericMgefHandler<EffectHandler::kOPEN>, NullEfitHandler<EffectHandler::kOPEN>, ActiveEffect>(EffectHandler::kOPEN,"Open");
+        insert<GenericMgefHandler<EffectHandler::kSTRP>, NullEfitHandler<EffectHandler::kSTRP>, ActiveEffect>(EffectHandler::kSTRP,"Soul Trap");
+        insert<GenericValueModifierMgefHandler<EffectHandler::kMDAV>, GenericValueModifierEfitHandler<EffectHandler::kMDAV>, ValueModifierEffect>(EffectHandler::kMDAV,"Value Modifier");
+        insert<GenericValueModifierMgefHandler<EffectHandler::kABSB>, GenericValueModifierEfitHandler<EffectHandler::kABSB>, ValueModifierEffect>(EffectHandler::kABSB,"Absorb");
+        insert<GenericValueModifierMgefHandler<EffectHandler::kPARA>, GenericValueModifierEfitHandler<EffectHandler::kPARA>, ValueModifierEffect>(EffectHandler::kPARA,"Paralysis");
+        insert<GenericValueModifierMgefHandler<EffectHandler::kSHLD>, GenericValueModifierEfitHandler<EffectHandler::kSHLD>, ValueModifierEffect>(EffectHandler::kSHLD,"Shield");
+        insert<GenericValueModifierMgefHandler<EffectHandler::kCALM>, GenericValueModifierEfitHandler<EffectHandler::kCALM>, ValueModifierEffect>(EffectHandler::kCALM,"Calm");
+        insert<GenericValueModifierMgefHandler<EffectHandler::kFRNZ>, GenericValueModifierEfitHandler<EffectHandler::kFRNZ>, ValueModifierEffect>(EffectHandler::kFRNZ,"Frenzy");
+        insert<GenericValueModifierMgefHandler<EffectHandler::kCHML>, GenericValueModifierEfitHandler<EffectHandler::kCHML>, ValueModifierEffect>(EffectHandler::kCHML,"Chameleon");
+        insert<GenericValueModifierMgefHandler<EffectHandler::kINVI>, GenericValueModifierEfitHandler<EffectHandler::kINVI>, ValueModifierEffect>(EffectHandler::kINVI,"Invisibility");
+        insert<GenericValueModifierMgefHandler<EffectHandler::kDTCT>, GenericValueModifierEfitHandler<EffectHandler::kDTCT>, ValueModifierEffect>(EffectHandler::kDTCT,"Detect Life");
+        insert<GenericValueModifierMgefHandler<EffectHandler::kNEYE>, GenericValueModifierEfitHandler<EffectHandler::kNEYE>, ValueModifierEffect>(EffectHandler::kNEYE,"Night Eye");
+        insert<GenericValueModifierMgefHandler<EffectHandler::kDARK>, GenericValueModifierEfitHandler<EffectHandler::kDARK>, ValueModifierEffect>(EffectHandler::kDARK,"Darkness");
+        insert<GenericValueModifierMgefHandler<EffectHandler::kTELE>, GenericValueModifierEfitHandler<EffectHandler::kTELE>, ValueModifierEffect>(EffectHandler::kTELE,"Telekinesis");
+        insert<SummonCreatureMgefHandler,                SummonCreatureEfitHandler,             SummonCreatureEffect>(EffectHandler::kSMAC,"Summon Actor");
+        insert<BoundItemMgefHandler,                     BoundItemEfitHandler,                  BoundItemEffect>(EffectHandler::kSMBO,"Bound Item");
     }
 
 } g_handlerMap;
@@ -170,6 +171,42 @@ void MgefHandler::GetFromDialog(HWND dialog) {}
 void MgefHandler::CleanupDialog(HWND dialog) {} 
 #endif  
 /*************************** EfitHandler ********************************/
+EfitHandler* EfitHandler::Create(UInt32 handlerCode, EffectItem& item)
+{
+    // lookup creator func in handler map
+    HandlerMap::iterator it = g_handlerMap.find(handlerCode);
+    if (it != g_handlerMap.end() && it->second._CreateEfitHandler) return it->second._CreateEfitHandler(item);
+    return 0; // unrecognized handler
+}
+void EfitHandler::SetParentItemDefaultFields()
+{
+    parentItem.actorValue = 0;  // clear actor value field
+    // TODO - clear script formid
+}
+// serialization
+bool EfitHandler::LoadHandlerChunk(TESFile& file, UInt32 RecordVersion) { return true; } // default handler stores no data in chunk
+void EfitHandler::SaveHandlerChunk() {} // default handler saves no data, and hence saves no chunk at all
+void EfitHandler::LinkHandler() {} // default handler has no fields to link
+void EfitHandler::UnlinkHandler() {}
+// copy/compare
+void EfitHandler::CopyFrom(const EfitHandler& copyFrom) {}   // default handler has no fields to copy
+bool EfitHandler::CompareTo(const EfitHandler& compareTo)
+{
+    if (HandlerCode() != compareTo.HandlerCode()) return true;    
+    // default handler has no other fields to compare
+    return false;
+}
+#ifndef OBLIVION
+// reference management in CS
+void EfitHandler::RemoveFormReference(TESForm& form) {} // default handler has no form references
+// child Dialog in CS
+INT EfitHandler::DialogTemplateID() { return 0; }   // default handler has no dialog
+void EfitHandler::InitializeDialog(HWND dialog) {}
+bool EfitHandler::DialogMessageCallback(HWND dialog, UINT uMsg, WPARAM wParam, LPARAM lParam, LRESULT& result) { return false; }
+void EfitHandler::SetInDialog(HWND dialog) {}
+void EfitHandler::GetFromDialog(HWND dialog) {}
+void EfitHandler::CleanupDialog(HWND dialog) {} 
+#endif 
 /*************************** ActiveEffect ********************************/
 #ifdef OBLIVION
 bool ActvHandler::FullyLocalized()

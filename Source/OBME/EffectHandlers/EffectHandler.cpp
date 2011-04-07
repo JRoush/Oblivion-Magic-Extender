@@ -178,11 +178,7 @@ EfitHandler* EfitHandler::Create(UInt32 handlerCode, EffectItem& item)
     if (it != g_handlerMap.end() && it->second._CreateEfitHandler) return it->second._CreateEfitHandler(item);
     return 0; // unrecognized handler
 }
-void EfitHandler::SetParentItemDefaultFields()
-{
-    parentItem.actorValue = 0;  // clear actor value field
-    // TODO - clear script formid
-}
+void EfitHandler::SetParentItemDefaultFields() {}   // default handler does not use actorValue or ScriptFormID
 // serialization
 bool EfitHandler::LoadHandlerChunk(TESFile& file, UInt32 RecordVersion) { return true; } // default handler stores no data in chunk
 void EfitHandler::SaveHandlerChunk() {} // default handler saves no data, and hence saves no chunk at all
@@ -196,6 +192,12 @@ bool EfitHandler::CompareTo(const EfitHandler& compareTo)
     // default handler has no other fields to compare
     return false;
 }
+bool EfitHandler::Match(const EfitHandler& compareTo)
+{
+    return HandlerCode() == compareTo.HandlerCode();    // default handler has no other fields to compare
+}
+// calculated properties
+float EfitHandler::GetCostFactor(Actor* caster) { return 1.0; } // default handler has no effect on cost
 #ifndef OBLIVION
 // reference management in CS
 void EfitHandler::RemoveFormReference(TESForm& form) {} // default handler has no form references

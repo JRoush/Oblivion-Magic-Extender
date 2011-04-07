@@ -23,9 +23,11 @@ public:
     virtual void                SaveHandlerChunk();
     virtual void                LinkHandler();
     virtual void                UnlinkHandler();
+
     // copy/compare
     virtual void                CopyFrom(const MgefHandler& copyFrom);
     virtual bool                CompareTo(const MgefHandler& compareTo);
+
     #ifndef OBLIVION
     // reference management in CS
     virtual void                RemoveFormReference(TESForm& form);
@@ -70,10 +72,55 @@ public:
 class ValueModifierEfitHandler : public EfitHandler
 {
 public:
-    // constructor, destructor
-    ValueModifierEfitHandler(EffectItem& item) : EfitHandler(item) {}
+    // constructor, initializer
+    ValueModifierEfitHandler(EffectItem& item);
+    virtual void                SetParentItemDefaultFields(); // initialize actorVal, script formid on parent effect item & incr refs accordingly
 
-    // ... TODO
+    // serialization
+    //virtual bool              LoadHandlerChunk(TESFile& file, UInt32 RecordVersion);
+    //virtual void              SaveHandlerChunk();
+    virtual void                LinkHandler();
+    virtual void                UnlinkHandler();
+
+    // copy/compare
+    virtual void                CopyFrom(const EfitHandler& copyFrom); // must incr/decr CrossRefs for actorVal, scriptFormID if necessary
+    virtual bool                CompareTo(const EfitHandler& compareTo); // returns false if equivalent
+    virtual bool                Match(const EfitHandler& compareTo); // returns true if they match for purposes of alchemy
+
+    // game/CS specific
+    #ifdef OBLIVION
+    // TODO: menu interaction methods, similar to the dialog interaction methods
+    #else
+    // reference management in CS
+    virtual void                RemoveFormReference(TESForm& form);
+    // child dialog in CS
+    virtual INT                 DialogTemplateID();
+    virtual void                InitializeDialog(HWND dialog);
+    virtual bool                DialogMessageCallback(HWND dialog, UINT uMsg, WPARAM wParam, LPARAM lParam, LRESULT& result);
+    virtual void                SetInDialog(HWND dialog);
+    virtual void                GetFromDialog(HWND dialog);
+    #endif
+
+    // methods
+    UInt32          GetActorValue();
+    UInt8           GetAVPart();
+    bool            GetDetrimental();
+    bool            GetRecoverable();
+
+    // override flags
+    enum OverrideFlags
+    {   
+        kOverride_ActorValue    = 0x01,
+        kOverride_AVPart        = 0x02,
+        kOverride_Detrimental   = 0x04,
+        kOverride_Recovers      = 0x08,
+    };
+
+    // members
+    UInt8               overrideFlags;
+    UInt8               avPart; // AVPart: modifier to target
+    bool                detrimental;
+    bool                recovers;
 };
 
 template <UInt32 ehCode> class GenericValueModifierEfitHandler : public ValueModifierEfitHandler

@@ -1,6 +1,7 @@
 #include "OBME/EffectHandlers/ValueModifierEffect.h"
 #include "OBME/EffectHandlers/EffectHandler.rc.h"
 #include "OBME/EffectSetting.h"
+#include "OBME/EffectItem.h"
 
 #include "API/TESFiles/TESFile.h"
 #include "API/CSDialogs/TESDialog.h"
@@ -228,6 +229,247 @@ void ValueModifierMgefHandler::GetFromDialog(HWND dialog)
 #endif
 
 /*************************** ValueModifierEfitHandler ********************************/
+ValueModifierEfitHandler::ValueModifierEfitHandler(EffectItem& item) 
+: EfitHandler(item), overrideFlags(0), avPart(ValueModifierMgefHandler::kAVPart_Damage), detrimental(false), recovers(false)
+{
+    // default value of ActorValue override flag is set by SetParentItemDefaultFields(), at the same time it sets the initial actorValue code
+}
+void ValueModifierEfitHandler::SetParentItemDefaultFields()
+{
+    // set default avCode for effects that use explicit ev ranges
+    overrideFlags |= kOverride_ActorValue;
+    if (parentItem.GetMgefFlag(EffectSetting::kMgefFlagShift_UseSkill)) parentItem.actorValue = ActorValues::kActorVal_Armorer;
+    else if (parentItem.GetMgefFlag(EffectSetting::kMgefFlagShift_UseAttribute)) parentItem.actorValue = ActorValues::kActorVal_Strength;
+    else overrideFlags &= !kOverride_ActorValue; // doesn't use local AV
+}
+// serialization
+void ValueModifierEfitHandler::LinkHandler()
+{
+    // add cross reference for actorValue
+    #ifndef OBLIVION
+    if (overrideFlags & kOverride_ActorValue)
+    {
+        TESForm* parentForm = dynamic_cast<TESForm*>(parentItem.parentList);
+        TESForm* form = TESFileFormats::GetFormFromCode(parentItem.actorValue,TESFileFormats::kResType_ActorValue);
+        if (parentForm && form) form->AddCrossReference(parentForm);
+    }
+    #endif
+}
+void ValueModifierEfitHandler::UnlinkHandler()
+{
+    // remove cross reference for actorValue
+    #ifndef OBLIVION
+    if (overrideFlags & kOverride_ActorValue)
+    {
+        TESForm* parentForm = dynamic_cast<TESForm*>(parentItem.parentList);
+        TESForm* form = TESFileFormats::GetFormFromCode(parentItem.actorValue,TESFileFormats::kResType_ActorValue);
+        if (parentForm && form) form->RemoveCrossReference(parentForm);
+    }
+    #endif
+}
+// copy/compare
+void ValueModifierEfitHandler::CopyFrom(const EfitHandler& copyFrom)
+{
+    const ValueModifierEfitHandler* src = dynamic_cast<const ValueModifierEfitHandler*>(&copyFrom);
+    if (!src) return; // wrong polymorphic type
+
+    // actorValue
+    #ifndef OBLIVION
+    TESForm* parentForm = dynamic_cast<TESForm*>(parentItem.parentList);
+    if (overrideFlags & kOverride_ActorValue)
+    {        
+        TESForm* form = TESFileFormats::GetFormFromCode(parentItem.actorValue,TESFileFormats::kResType_ActorValue);
+        if (parentForm && form) form->RemoveCrossReference(parentForm);
+    }
+    if (src->overrideFlags & kOverride_ActorValue)
+    {        
+        TESForm* form = TESFileFormats::GetFormFromCode(src->parentItem.actorValue,TESFileFormats::kResType_ActorValue);
+        if (parentForm && form) form->AddCrossReference(parentForm);
+    }
+    #endif
+    parentItem.actorValue = src->parentItem.actorValue;
+
+    // members
+    overrideFlags = src->overrideFlags;
+    avPart = src->avPart;
+    detrimental = src->detrimental;
+    recovers = src->recovers;
+}
+bool ValueModifierEfitHandler::CompareTo(const EfitHandler& compareTo)
+{
+    if (EfitHandler::CompareTo(compareTo)) return BoolEx(02);
+    const ValueModifierEfitHandler* src = dynamic_cast<const ValueModifierEfitHandler*>(&compareTo);
+    if (!src) return BoolEx(04); // wrong polymorphic type
+
+    // compare override masks
+    if (overrideFlags != src->overrideFlags) return BoolEx(10);
+
+    // compare actor values
+    if ((overrideFlags & kOverride_ActorValue) && parentItem.actorValue != src->parentItem.actorValue) return BoolEx(20);
+    
+    // compare members
+    if ((overrideFlags & kOverride_AVPart) && avPart != src->avPart) return BoolEx(21);
+    if ((overrideFlags & kOverride_Detrimental) && detrimental != src->detrimental) return BoolEx(22);
+    if ((overrideFlags & kOverride_Recovers) && recovers != src->recovers) return BoolEx(23);
+
+    // identical
+    return false;
+}
+bool ValueModifierEfitHandler::Match(const EfitHandler& compareTo)
+{
+    if (!EfitHandler::Match(compareTo)) return false;
+    const ValueModifierEfitHandler* src = dynamic_cast<const ValueModifierEfitHandler*>(&compareTo);
+    if (!src) return BoolEx(04); // wrong polymorphic type
+
+    // return true if doesn't override AV, or if avs are identical
+    return (~overrideFlags & kOverride_ActorValue) || (parentItem.actorValue == src->parentItem.actorValue);
+}
+// game/CS specific
+#ifndef OBLIVION
+// reference management in CS
+void ValueModifierEfitHandler::RemoveFormReference(TESForm& form)
+{
+    // clear actorValue if it is in use and it references AV token form
+    if (overrideFlags & kOverride_ActorValue)
+    {
+        if (&form == TESFileFormats::GetFormFromCode(parentItem.actorValue,TESFileFormats::kResType_ActorValue))
+            parentItem.actorValue = ActorValues::kActorVal__UBOUND;    // reset value to 'none'
+    }    
+}
+// child dialog in CS
+INT ValueModifierEfitHandler::DialogTemplateID() { return IDD_EFIT_MDAV; }
+void ValueModifierEfitHandler::InitializeDialog(HWND dialog)
+{
+    HWND ctl = 0;
+    // AV
+    TESComboBox::PopulateWithActorValues(GetDlgItem(dialog,IDC_MDAV_ACTORVALUE),true,true);
+    // AV Part
+    ctl = GetDlgItem(dialog,IDC_MDAV_AVPART);
+    TESComboBox::Clear(ctl);
+    TESComboBox::AddItem(ctl,"Base Value",(void*)ValueModifierMgefHandler::kAVPart_Base);
+    TESComboBox::AddItem(ctl,"Max Modifier",(void*)ValueModifierMgefHandler::kAVPart_Max);
+    TESComboBox::AddItem(ctl,"Max Modifier (Base for Player Abilities)",(void*)ValueModifierMgefHandler::kAVPart_MaxSpecial);
+    TESComboBox::AddItem(ctl,"Script Modifier",(void*)ValueModifierMgefHandler::kAVPart_Script);
+    TESComboBox::AddItem(ctl,"Damage Modifier",(void*)ValueModifierMgefHandler::kAVPart_Damage);
+}
+bool ValueModifierEfitHandler::DialogMessageCallback(HWND dialog, UINT uMsg, WPARAM wParam, LPARAM lParam, LRESULT& result)
+{
+    if (uMsg == WM_USERCOMMAND || uMsg == WM_COMMAND)
+    {
+        UInt32 commandCode = HIWORD(wParam);
+        switch (LOWORD(wParam)) // switch on control id
+        {            
+            case IDC_MDAV_OVR_ACTORVALUE:
+            {
+                bool over = Button_GetCheck(GetDlgItem(dialog,IDC_MDAV_OVR_ACTORVALUE));  
+                EnableWindow(GetDlgItem(dialog,IDC_MDAV_ACTORVALUE),over);                
+                result = 0; return true; // result = 0 to mark command message handled
+            }
+            case IDC_MDAV_OVR_AVPART:
+            {
+                bool over = Button_GetCheck(GetDlgItem(dialog,IDC_MDAV_OVR_AVPART));
+                EnableWindow(GetDlgItem(dialog,IDC_MDAV_AVPART),over);
+                result = 0; return true; // result = 0 to mark command message handled
+            }
+            case IDC_MDAV_OVR_RAISELOWER:
+            {
+                bool over = Button_GetCheck(GetDlgItem(dialog,IDC_MDAV_OVR_RAISELOWER));
+                EnableWindow(GetDlgItem(dialog,IDC_MDAV_DETRIMENTAL),over);
+                EnableWindow(GetDlgItem(dialog,IDC_MDAV_INCREMENTAL),over);
+                result = 0; return true; // result = 0 to mark command message handled
+            }
+            case IDC_MDAV_OVR_RECOVERS:
+            {
+                bool over = Button_GetCheck(GetDlgItem(dialog,IDC_MDAV_OVR_RECOVERS));
+                EnableWindow(GetDlgItem(dialog,IDC_MDAV_RECOVERS),over);
+                result = 0; return true; // result = 0 to mark command message handled
+            }
+        }
+    }  
+
+    // unhandled message
+    return false;
+}
+void ValueModifierEfitHandler::SetInDialog(HWND dialog)
+{
+    HWND ctl = 0;
+    // AV
+    TESComboBox::SetCurSelByData(GetDlgItem(dialog,IDC_MDAV_ACTORVALUE), (void*)GetActorValue());
+    ctl = GetDlgItem(dialog,IDC_MDAV_OVR_ACTORVALUE);
+    Button_SetCheck(ctl, (overrideFlags & kOverride_ActorValue) ? BST_CHECKED : BST_UNCHECKED );
+    SendMessage(dialog,WM_USERCOMMAND,MAKEWPARAM(IDC_MDAV_OVR_ACTORVALUE,BN_CLICKED),(LPARAM)ctl);
+    // AV Part
+    TESComboBox::SetCurSelByData(GetDlgItem(dialog,IDC_MDAV_AVPART), (void*)GetAVPart());
+    ctl = GetDlgItem(dialog,IDC_MDAV_OVR_AVPART);
+    Button_SetCheck(ctl, (overrideFlags & kOverride_AVPart) ? BST_CHECKED : BST_UNCHECKED );
+    SendMessage(dialog,WM_USERCOMMAND,MAKEWPARAM(IDC_MDAV_OVR_AVPART,BN_CLICKED),(LPARAM)ctl);
+    // Detrimental option group
+    bool det = GetDetrimental();
+    Button_SetCheck(GetDlgItem(dialog,IDC_MDAV_DETRIMENTAL),det);
+    Button_SetCheck(GetDlgItem(dialog,IDC_MDAV_INCREMENTAL),!det);
+    ctl = GetDlgItem(dialog,IDC_MDAV_OVR_RAISELOWER);
+    Button_SetCheck(ctl, (overrideFlags & kOverride_Detrimental) ? BST_CHECKED : BST_UNCHECKED );
+    SendMessage(dialog,WM_USERCOMMAND,MAKEWPARAM(IDC_MDAV_OVR_RAISELOWER,BN_CLICKED),(LPARAM)ctl);
+    // Recovers
+    Button_SetCheck(GetDlgItem(dialog,IDC_MDAV_RECOVERS), GetRecoverable() ? BST_CHECKED : BST_UNCHECKED  );
+    ctl = GetDlgItem(dialog,IDC_MDAV_OVR_RECOVERS);
+    Button_SetCheck(ctl, (overrideFlags & kOverride_Recovers) ? BST_CHECKED : BST_UNCHECKED );
+    SendMessage(dialog,WM_USERCOMMAND,MAKEWPARAM(IDC_MDAV_OVR_RECOVERS,BN_CLICKED),(LPARAM)ctl);
+}
+void ValueModifierEfitHandler::GetFromDialog(HWND dialog)
+{
+    // AV
+    if (Button_GetCheck(GetDlgItem(dialog,IDC_MDAV_OVR_ACTORVALUE))) 
+    {
+        overrideFlags |= kOverride_ActorValue;
+        parentItem.actorValue = (UInt32)TESComboBox::GetCurSelData(GetDlgItem(dialog,IDC_MDAV_ACTORVALUE));
+    }
+    else overrideFlags &= ~kOverride_ActorValue;
+
+    // AV Part
+    if (Button_GetCheck(GetDlgItem(dialog,IDC_MDAV_OVR_AVPART))) 
+    {
+        overrideFlags |= kOverride_AVPart;
+        avPart = (UInt32)TESComboBox::GetCurSelData(GetDlgItem(dialog,IDC_MDAV_AVPART));
+    }
+    else overrideFlags &= ~kOverride_AVPart;
+
+    // Detrimental
+    if (Button_GetCheck(GetDlgItem(dialog,IDC_MDAV_OVR_RAISELOWER))) 
+    {
+        overrideFlags |= kOverride_Detrimental;
+        detrimental = Button_GetCheck(GetDlgItem(dialog,IDC_MDAV_DETRIMENTAL));
+    }
+    else overrideFlags &= ~kOverride_Detrimental;
+
+    // Recovers
+    if (Button_GetCheck(GetDlgItem(dialog,IDC_MDAV_OVR_RECOVERS))) 
+    {
+        overrideFlags |= kOverride_Recovers;
+        recovers = Button_GetCheck(GetDlgItem(dialog,IDC_MDAV_RECOVERS));
+    }
+    else overrideFlags &= ~kOverride_Recovers;
+}
+#endif
+// methods
+UInt32 ValueModifierEfitHandler::GetActorValue()
+{
+    return (overrideFlags & kOverride_ActorValue) ? parentItem.actorValue : parentItem.GetEffectSetting()->mgefParam;
+}
+UInt8 ValueModifierEfitHandler::GetAVPart()
+{
+    if (overrideFlags & kOverride_AVPart) return avPart;
+    ValueModifierMgefHandler& mgefHandler = (ValueModifierMgefHandler&)parentItem.GetEffectSetting()->GetHandler();
+    return mgefHandler.avPart;
+}
+bool ValueModifierEfitHandler::GetDetrimental()
+{
+    return (overrideFlags & kOverride_Detrimental) ? detrimental : parentItem.GetMgefFlag(EffectSetting::kMgefFlagShift_Detrimental);
+}
+bool ValueModifierEfitHandler::GetRecoverable()
+{
+    return (overrideFlags & kOverride_Recovers) ? recovers : parentItem.GetMgefFlag(EffectSetting::kMgefFlagShift_Recovers);
+}
 /*************************** ValueModifierEffect ********************************/
 #ifdef OBLIVION
 float ValueModifierActvHandler::GetDefaultMagnitude() {return 0;} 

@@ -23,6 +23,7 @@
 // argument classes
 class   TESFile;
 class   TESForm;
+class   Actor;
 
 namespace OBME {
 
@@ -150,24 +151,28 @@ public:
 
     // creation
     static EfitHandler*         Create(UInt32 handlerCode, EffectItem& item); // create polymorphic instance based on handler code. 
-    void                        SetParentItemDefaultFields(); // initialize actorVal, script formid on parent effect item & incr refs accordingly
+    virtual void                SetParentItemDefaultFields(); // initialize actorVal, script formid on parent effect item & incr refs accordingly
 
     // serialization
     virtual bool                LoadHandlerChunk(TESFile& file, UInt32 RecordVersion);
     virtual void                SaveHandlerChunk();
-    virtual void                LinkHandler();
-    virtual void                UnlinkHandler();
+    virtual void                LinkHandler();   // must link actorValue, scriptFormID if necessary
+    virtual void                UnlinkHandler();   // must unlink actorValue, scriptFormID if necessary
 
     // copy/compare
     virtual void                CopyFrom(const EfitHandler& copyFrom); // must incr/decr CrossRefs for actorVal, scriptFormID if necessary
     virtual bool                CompareTo(const EfitHandler& compareTo); // returns false if equivalent
+    virtual bool                Match(const EfitHandler& compareTo); // returns true if they match for purposes of alchemy
 
-    // gmae/CS specific
+    // calculated properties
+    virtual float               GetCostFactor(Actor* caster); // get multiplicative factor to effect item magicka cost
+
+    // game/CS specific
     #ifdef OBLIVION
     // TODO: menu interaction methods, similar to the dialog interaction methods
     #else
     // reference management in CS
-    virtual void                RemoveFormReference(TESForm& form); // removes ref to given form.  must handle mgefParam if necessary
+    virtual void                RemoveFormReference(TESForm& form); // removes ref to given form.  must handle actorValue/scriptFormID if necessary
     // child dialog in CS
     virtual INT                 DialogTemplateID(); // ID of dialog template resource 
     virtual void                InitializeDialog(HWND dialog);

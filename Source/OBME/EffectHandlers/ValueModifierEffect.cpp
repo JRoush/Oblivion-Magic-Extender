@@ -249,7 +249,7 @@ void ValueModifierEfitHandler::LinkHandler()
     #ifndef OBLIVION
     if (overrideFlags & kOverride_ActorValue)
     {
-        TESForm* parentForm = dynamic_cast<TESForm*>(parentItem.parentList);
+        TESForm* parentForm = dynamic_cast<TESForm*>(parentItem.GetParentList());
         TESForm* form = TESFileFormats::GetFormFromCode(parentItem.actorValue,TESFileFormats::kResType_ActorValue);
         if (parentForm && form) form->AddCrossReference(parentForm);
     }
@@ -261,7 +261,7 @@ void ValueModifierEfitHandler::UnlinkHandler()
     #ifndef OBLIVION
     if (overrideFlags & kOverride_ActorValue)
     {
-        TESForm* parentForm = dynamic_cast<TESForm*>(parentItem.parentList);
+        TESForm* parentForm = dynamic_cast<TESForm*>(parentItem.GetParentList());
         TESForm* form = TESFileFormats::GetFormFromCode(parentItem.actorValue,TESFileFormats::kResType_ActorValue);
         if (parentForm && form) form->RemoveCrossReference(parentForm);
     }
@@ -275,7 +275,7 @@ void ValueModifierEfitHandler::CopyFrom(const EfitHandler& copyFrom)
 
     // actorValue
     #ifndef OBLIVION
-    TESForm* parentForm = dynamic_cast<TESForm*>(parentItem.parentList);
+    TESForm* parentForm = dynamic_cast<TESForm*>(parentItem.GetParentList());
     if (overrideFlags & kOverride_ActorValue)
     {        
         TESForm* form = TESFileFormats::GetFormFromCode(parentItem.actorValue,TESFileFormats::kResType_ActorValue);

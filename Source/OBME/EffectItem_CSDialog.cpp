@@ -61,9 +61,9 @@ void EffectItem::InitializeDialog(HWND dialog)
     TESComboBox::SetCurSelByData(ctl,GetEffectSetting());
 
     // projectile range
-    Button_SetCheck(GetDlgItem(dialog,IDC_EFIT_PROJRANGEENABLE), (projectileRange < 0) ? BST_UNCHECKED : BST_CHECKED );
-    if (projectileRange < 0) projectileRange = 0;
-    SetDlgItemInt(dialog,IDC_EFIT_PROJRANGE,projectileRange,true); 
+    SInt32 projRange = scriptInfo ? ((EffectItemExtra*)scriptInfo)->projectileRange : -1;
+    Button_SetCheck(GetDlgItem(dialog,IDC_EFIT_PROJRANGEENABLE), (projRange < 0) ? BST_UNCHECKED : BST_CHECKED );
+    SetDlgItemInt(dialog,IDC_EFIT_PROJRANGE, (projRange < 0) ? 0 : projRange ,true); 
 
     // set area, duration, magnitude   
     SetDlgItemInt(dialog,IDC_EFIT_AREA,GetArea(),false);
@@ -144,10 +144,10 @@ void EffectItem::SetInDialog(HWND dialog)
     SendMessage(dialog,WM_USERCOMMAND,MAKEWPARAM(IDC_EFIT_RANGE,CBN_SELCHANGE),(LPARAM)rangeCtl);
 
     // handler
-    if (effectHandler) 
+    if (GetHandler()) 
     {
-        effectHandler->InitializeDialog(dialog);
-        effectHandler->SetInDialog(dialog);
+        GetHandler()->InitializeDialog(dialog);
+        GetHandler()->SetInDialog(dialog);
     }
 }
 void EffectItem::GetFromDialog(HWND dialog)
@@ -163,7 +163,7 @@ void EffectItem::GetFromDialog(HWND dialog)
     SetMagnitude(IsWindowEnabled(GetDlgItem(dialog,IDC_EFIT_MAGNITUDE)) ? GetDlgItemInt(dialog,IDC_EFIT_MAGNITUDE,0,false) : 0);
 
     // handler
-    if (effectHandler) effectHandler->GetFromDialog(dialog);
+    if (GetHandler()) GetHandler()->GetFromDialog(dialog);
 
     // name override
     if (Button_GetCheck(GetDlgItem(dialog,IDC_EFIT_OVR_NAME)))
@@ -226,7 +226,7 @@ void EffectItem::CleanupDialog(HWND dialog)
     _VMESSAGE("Cleanup dialog for <%p>");
 
     // handler
-    if (effectHandler) effectHandler->CleanupDialog(dialog);
+    if (GetHandler()) GetHandler()->CleanupDialog(dialog);
 
     // icon extra obj
     if (DialogExtraIcon* extraIcon = (DialogExtraIcon*)TESDialog::GetDialogExtraData(dialog,DialogExtraIcon::kDialogExtra_Icon))
@@ -247,8 +247,8 @@ bool EffectItem::HandleDialogEvent(HWND dialog, int uMsg, WPARAM wParam, LPARAM 
                 if (commandCode != CBN_SELCHANGE) break;
                 SetRange((UInt8)TESComboBox::GetCurSelData((HWND)lParam)); // update range
                 // update enable state of proj range checkbox
-                bool canFaveProjRange = GetEffectSetting()->GetFlag(EffectSetting::kMgefFlagShift_HasProjRange) && GetRange() == Magic::kRange_Target;
-                EnableWindow(GetDlgItem(dialog,IDC_EFIT_PROJRANGEENABLE),canFaveProjRange);
+                bool canHaveProjRange = GetEffectSetting()->GetFlag(EffectSetting::kMgefFlagShift_HasProjRange) && GetRange() == Magic::kRange_Target;
+                EnableWindow(GetDlgItem(dialog,IDC_EFIT_PROJRANGEENABLE),canHaveProjRange);
                 // update enable state of area edit
                 bool hasArea = !GetEffectSetting()->GetFlag(EffectSetting::kMgefFlagShift_NoArea) && GetRange() != Magic::kRange_Self; 
                 EnableWindow(GetDlgItem(dialog,IDC_EFIT_AREA),hasArea);
@@ -272,7 +272,7 @@ bool EffectItem::HandleDialogEvent(HWND dialog, int uMsg, WPARAM wParam, LPARAM 
                 // change effect setting
                 DialogExtraSubwindow* extraSubwindow = (DialogExtraSubwindow*)TESDialog::GetDialogExtraData(dialog,BSExtraData::kDialogExtra_SubWindow);
                 EffectSetting* mgef = (EffectSetting*)TESComboBox::GetCurSelData(GetDlgItem(dialog,IDC_EFIT_EFFECT));
-                if (effectHandler && extraSubwindow) effectHandler->CleanupDialog(dialog); // cleanup current handler dialog
+                if (GetHandler() && extraSubwindow) GetHandler()->CleanupDialog(dialog); // cleanup current handler dialog
                 SetEffectSetting(*mgef);
                 // add subwindow extra data on first pass
                 if (!extraSubwindow)
@@ -281,7 +281,7 @@ bool EffectItem::HandleDialogEvent(HWND dialog, int uMsg, WPARAM wParam, LPARAM 
                     TESDialog::GetDialogExtraList(dialog)->AddExtra(extraSubwindow);
                 }
                 // rebuild handler subdialog if necessary
-                INT newTemplate = effectHandler ? effectHandler->DialogTemplateID() : 0;
+                INT newTemplate = GetHandler() ? GetHandler()->DialogTemplateID() : 0;
                 if (newTemplate != extraSubwindow->dialogTemplateID)
                 {
                     extraSubwindow->dialogTemplateID = newTemplate;
@@ -373,7 +373,7 @@ bool EffectItem::HandleDialogEvent(HWND dialog, int uMsg, WPARAM wParam, LPARAM 
     }  
     
     // pass to handler
-    if (effectHandler && effectHandler->DialogMessageCallback(dialog,uMsg,wParam,lParam,result)) return true; 
+    if (GetHandler() && GetHandler()->DialogMessageCallback(dialog,uMsg,wParam,lParam,result)) return true; 
 
     // pass to temp TESIcon object
     if(DialogExtraIcon* extraIcon = (DialogExtraIcon*)TESDialog::GetDialogExtraData(dialog,DialogExtraIcon::kDialogExtra_Icon))

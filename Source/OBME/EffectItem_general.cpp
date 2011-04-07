@@ -28,12 +28,12 @@ bool EffectItem::CompareTo(const EffectItem& compareTo) const
     if (GetMagnitude() != compareTo.GetMagnitude()) return BoolEx(0x24);
 
     // handler & handler-specific fields
-    if (effectHandler)
+    if (GetHandler())
     {
-        if (!compareTo.effectHandler) return BoolEx(0x30);
-        else if (effectHandler->CompareTo(*compareTo.effectHandler)) return BoolEx(0x30);
+        if (!compareTo.GetHandler()) return BoolEx(0x30);
+        else if (GetHandler()->CompareTo(*compareTo.GetHandler())) return BoolEx(0x30);
     }
-    else if (compareTo.effectHandler) return BoolEx(0x30);
+    else if (compareTo.GetHandler()) return BoolEx(0x30);
     if (actorValue != compareTo.actorValue) return BoolEx(0x31);
 
     // overrides
@@ -68,24 +68,32 @@ void EffectItem::CopyFrom(const EffectItem& copyFrom)
 
     // get parent form, for reference counting.  Note that parent ref is explicitly not copied.
     // NOTE - if parent is NULL, Add/Remove FormReference will do nothing
-    TESForm* parent = parentList ? dynamic_cast<TESForm*>(parentList) : 0;
+    TESForm* parent = dynamic_cast<TESForm*>(GetParentList());
 
     // effect (automatically generates correct default handler item)
-    #ifndef OBLIVION
-    GetEffectSetting()->RemoveCrossReference(parent);
-    copyFrom.GetEffectSetting()->AddCrossReference(parent);
-    #endif
-    SetEffectSetting(*copyFrom.GetEffectSetting());
+    if (GetEffectSetting() != copyFrom.GetEffectSetting())
+    {
+        #ifndef OBLIVION
+        GetEffectSetting()->RemoveCrossReference(parent);
+        copyFrom.GetEffectSetting()->AddCrossReference(parent);
+        #endif
+        if (GetHandler()) 
+        {
+            GetHandler()->UnlinkHandler(); // unlink handler to decr form refs
+            SetHandler(0);  // destroy current handler
+        }
+        SetEffectSetting(*copyFrom.GetEffectSetting());
+    }
     
     // basic fields
     range = copyFrom.range;
-    projectileRange = copyFrom.projectileRange;
     area = copyFrom.area;
     duration = copyFrom.duration;
     magnitude = copyFrom.magnitude;
+    SetProjectileRange(copyFrom.GetProjectileRange());  // don't copy literal values b/c it's stored on the extra obj
 
     // handler & handler-specific parameters
-    if (effectHandler && copyFrom.effectHandler) effectHandler->CopyFrom(*copyFrom.effectHandler);
+    if (GetHandler() && copyFrom.GetHandler()) GetHandler()->CopyFrom(*copyFrom.GetHandler());
     actorValue = copyFrom.actorValue;   // handler only copies it if handler uses it
 
     // overrides
@@ -175,28 +183,93 @@ void EffectItem::SetEffectSetting(const EffectSetting& nEffect)
     }
 
     // reset handler
-    if (effectHandler) 
-    {
-        effectHandler->UnlinkHandler(); // remove any references made by handler
-        delete effectHandler;
-    }
     actorValue = 0; // handler may provide alternate init
     if (scriptInfo) scriptInfo->scriptFormID = 0;  // handler may provide alternate init
-    effectHandler = EfitHandler::Create(mgef.GetHandler().HandlerCode(),*this);
-    if (effectHandler) effectHandler->SetParentItemDefaultFields();
+    SetHandler(EfitHandler::Create(mgef.GetHandler().HandlerCode(),*this));
+    if (GetHandler()) GetHandler()->SetParentItemDefaultFields();
+}
+::EffectItemList* EffectItem::GetParentList() const
+{
+    if (EffectItemExtra* extra = (EffectItemExtra*)scriptInfo) return extra->parentList;
+    else return 0;
+}
+void EffectItem::SetParentList(::EffectItemList* list)
+{
+    EffectItemExtra* extra = (EffectItemExtra*)scriptInfo;
+    if (list)
+    {
+        // default construct extra obj
+        if (!extra) extra = new EffectItemExtra;    
+        scriptInfo = extra;
+        extra->parentList = list; // set new parent
+    }
+    else if (extra)
+    {
+        extra->parentList = 0; // clear parent list
+        if (extra->IsEmpty() && mgefCode != Swap32('SEFF')) // all overrides clear, and not SEFF
+        {
+            delete extra; // destroy unnecessary handler object
+            scriptInfo = 0;
+        }
+    }
+}
+EfitHandler* EffectItem::GetHandler() const
+{
+    if (EffectItemExtra* extra = (EffectItemExtra*)scriptInfo) return extra->effectHandler;
+    else return 0;
+}
+void EffectItem::SetHandler(EfitHandler* handler)
+{
+    EffectItemExtra* extra = (EffectItemExtra*)scriptInfo;
+    if (handler)
+    {
+        // default construct extra obj
+        if (!extra) extra = new EffectItemExtra;    
+        scriptInfo = extra;
+        // detsroy old handler
+        if (extra->effectHandler && extra->effectHandler != handler) delete extra->effectHandler;
+        extra->effectHandler = handler; // set new handler
+    }
+    else if (extra)
+    {
+        if (extra->effectHandler) delete extra->effectHandler;  // destroy existing handler
+        extra->effectHandler = 0; // clear handler field
+        if (extra->IsEmpty() && mgefCode != Swap32('SEFF')) // all overrides clear, and not SEFF
+        {
+            delete extra; // destroy unnecessary handler object
+            scriptInfo = 0;
+        }
+    }
 }
 SInt32 EffectItem::GetProjectileRange() const
 {
     if (!GetEffectSetting()->GetFlag(EffectSetting::kMgefFlagShift_HasProjRange)) return -1; // base effect cannot have projectile ranges
     else if (GetRange() != Magic::kRange_Target) return -1; // effect is not targeted, no projectile
-    else return projectileRange;
+    else if (EffectItemExtra* extra = (EffectItemExtra*)scriptInfo) return extra->projectileRange;  // return stored projectile range
+    else return -1; // no extra obj
 }
 bool EffectItem::SetProjectileRange(SInt32 value)
 {
-    bool noRange = !GetEffectSetting()->GetFlag(EffectSetting::kMgefFlagShift_HasProjRange) || (GetRange() != Magic::kRange_Target);
-    if (noRange && value >= 0) return false;    // valid proj range not allowed for this effect
-    
-    projectileRange = value;
+    EffectItemExtra* extra = (EffectItemExtra*)scriptInfo;
+    if (value >= 0)
+    {
+        // check if this item can have a valid proj range
+        if (!GetEffectSetting()->GetFlag(EffectSetting::kMgefFlagShift_HasProjRange) || GetRange() != Magic::kRange_Target) return false;
+        // default construct extra obj
+        if (!extra) extra = new EffectItemExtra;    
+        scriptInfo = extra;
+        // set new proj range
+        extra->projectileRange = value;
+    }
+    else if (extra)
+    {
+        extra->projectileRange = -1;    // clear projectile range
+        if (extra->IsEmpty() && mgefCode != Swap32('SEFF')) // all overrides clear, and not SEFF
+        {
+            delete extra; // destroy unnecessary handler object
+            scriptInfo = 0;
+        }
+    }
     cost = -1;  // clear cached cost
     return true;
 }
@@ -204,6 +277,7 @@ bool EffectItem::SetProjectileRange(SInt32 value)
 // methods - overrides
 EffectItem::EffectItemExtra::EffectItemExtra()
 {
+    // override members
     scriptFormID = 0;
     school = Magic::kSchool_Alteration; // as in game/CS code - init to 0
     name.Clear();
@@ -217,6 +291,19 @@ EffectItem::EffectItemExtra::EffectItemExtra()
     baseCost = 0;
     resistAV = ActorValues::kActorVal__UBOUND;   // used as a 'No resistance' value
     iconPath.Clear();
+    // non-override members
+    parentList = 0;
+    effectHandler = 0;
+    projectileRange = -1;
+}
+EffectItem::EffectItemExtra::~EffectItemExtra()
+{
+    // automatically invokes destructor for name + icon strings
+    if (effectHandler) delete effectHandler;    // destroy handler object
+}
+bool EffectItem::EffectItemExtra::IsEmpty()
+{
+    return (efitFlagMask == 0 && mgefFlagMask == 0 && parentList == 0 && effectHandler == 0 && projectileRange < 0);
 }
 bool EffectItem::IsEfitFieldOverridden(UInt32 flagShift) const
 {
@@ -237,9 +324,9 @@ void EffectItem::SetEfitFieldOverride(UInt32 flagShift, bool value)
     else if (extra) 
     {
         extra->efitFlagMask &= ~(1 << flagShift);    // clear override flag
-        if (extra->efitFlagMask == 0 && extra->mgefFlagMask == 0 && mgefCode != Swap32('SEFF')) // all overrides clear, and not SEFF
+        if (extra->IsEmpty() && mgefCode != Swap32('SEFF')) // all overrides clear, and not SEFF
         {
-            delete extra; // default destruct (cleans up name+icon strings)
+            delete extra; // destroy unnecessary handler object
             scriptInfo = 0;
         }
     }    
@@ -263,9 +350,9 @@ void EffectItem::SetMgefFlagOverride(UInt32 flagShift, bool value)
     else if (extra) 
     {
         extra->mgefFlagMask &= ~(1i64 << flagShift);    // clear override flag
-        if (extra->efitFlagMask == 0 && extra->mgefFlagMask == 0 && mgefCode != Swap32('SEFF')) // all overrides clear, and not SEFF
+        if (extra->IsEmpty() && mgefCode != Swap32('SEFF')) // all overrides clear, and not SEFF
         {
-            delete extra; // default destruct (cleans up name+icon strings)
+            delete extra; // destroy unnecessary handler object
             scriptInfo = 0;
         }
     }  
@@ -450,7 +537,7 @@ void EffectItem::Link()
 {
     // get parent form, for reference counting.
     // NOTE - if parent is NULL, Add/Remove FormReference will do nothing
-    TESForm* parent = parentList ? dynamic_cast<TESForm*>(parentList) : 0;
+    TESForm* parent = dynamic_cast<TESForm*>(GetParentList());
 
     // effect
     #ifndef OBLIVION
@@ -458,7 +545,7 @@ void EffectItem::Link()
     #endif
 
     // handler
-    if (effectHandler) effectHandler->LinkHandler();    // links actorValue, ScriptFormID as necessary
+    if (GetHandler()) GetHandler()->LinkHandler();    // links actorValue, ScriptFormID as necessary
 
     // override form refs
     #ifndef OBLIVION 
@@ -480,7 +567,7 @@ void EffectItem::Unlink()
 {
     // get parent form, for reference counting.
     // NOTE - if parent is NULL, Add/Remove FormReference will do nothing
-    TESForm* parent = parentList ? dynamic_cast<TESForm*>(parentList) : 0;
+    TESForm* parent = dynamic_cast<TESForm*>(GetParentList());
 
     // effect
     #ifndef OBLIVION
@@ -488,7 +575,7 @@ void EffectItem::Unlink()
     #endif
 
     // handler
-    if (effectHandler) effectHandler->UnlinkHandler();    // links actorValue, ScriptFormID as necessary
+    if (GetHandler()) GetHandler()->UnlinkHandler();    // links actorValue, ScriptFormID as necessary
 
     // override form refs
     #ifndef OBLIVION 
@@ -523,7 +610,7 @@ void EffectItem::RemoveFormReference(TESForm& form)
     // NOTE - can't remove main EffectSetting, this must be done in the corresponding EffectItemList method
     
     // handler
-    if (effectHandler) effectHandler->RemoveFormReference(form);
+    if (GetHandler()) GetHandler()->RemoveFormReference(form);
 
     // override form refs
     if (IsEfitFieldOverridden(kEfitFlagShift_School)) // School
@@ -578,6 +665,9 @@ void EffectItem::Initialize(const EffectSetting& nEffect)
     EffectSetting& mgef = const_cast<EffectSetting&>(nEffect);
     effect = &mgef;
     mgefCode = nEffect.mgefCode;
+
+    // overrides - none
+    scriptInfo = 0;
     
     // basic fields
     if (!SetRange(Magic::kRange_Self) && !SetRange(Magic::kRange_Touch) && !SetRange(Magic::kRange_Target)) 
@@ -587,10 +677,6 @@ void EffectItem::Initialize(const EffectSetting& nEffect)
     area = 0;
     duration = 0;
     magnitude = 0;
-    projectileRange = -1;   // default to inf range, for compatibility
-
-    // overrides - none
-    scriptInfo = 0;
 
     // cost cache
     cost = -1;
@@ -602,14 +688,11 @@ void EffectItem::Initialize(const EffectSetting& nEffect)
     origItemMagicka = 0;
     origItemMastery = 0;
     #endif
-
-    // parent
-    parentList = 0;
     
     // handler
     actorValue = 0; // handler may provide alternate initialization
-    effectHandler = EfitHandler::Create(mgef.GetHandler().HandlerCode(),*this);
-    if (effectHandler) effectHandler->SetParentItemDefaultFields();
+    SetHandler(EfitHandler::Create(mgef.GetHandler().HandlerCode(),*this));
+    if (GetHandler()) GetHandler()->SetParentItemDefaultFields();
 }
 EffectItem::EffectItem(const EffectSetting& effect) : ::EffectItem(effect) {}
 EffectItem::EffectItem(const EffectItem& source) : ::EffectItem(source) {}
@@ -618,29 +701,22 @@ void EffectItem::Destruct()
     // EffectItemExtra
     if (EffectItemExtra* extra = (EffectItemExtra*)scriptInfo)
     {
-        delete extra;   // default destructor will call BSStringT destructors for name & icon path
+        delete extra;   // destroys name+icon strings and effect handler object
         scriptInfo = 0;
-    }
-
-    // Handler
-    if (effectHandler) 
-    {
-        delete effectHandler;
-        effectHandler = 0;
     }
 }
 // methods - debugging
 void EffectItem::Dump()
 {
     BSStringT desc = "[NO PARENT]";
-    if (TESForm* form = dynamic_cast<TESForm*>(parentList)) form->GetDebugDescription(desc);
+    if (TESForm* form = dynamic_cast<TESForm*>(GetParentList())) form->GetDebugDescription(desc);
     _MESSAGE("EffectItem <%p> on %s using %s",this,desc.c_str(),GetEffectSetting()->GetDebugDescEx().c_str());
     gLog.Indent();
     _MESSAGE("Magnitude = %i (%i)",GetMagnitude(),magnitude);
     _MESSAGE("Duration = %i (%i)",GetDuration(),duration);
     _MESSAGE("Area = %i (%i)",GetArea(),area);
     _MESSAGE("Range = %i (%i)",GetRange(),range);
-    _MESSAGE("Proj. Range = %i (%i)",GetProjectileRange(),projectileRange);
+    _MESSAGE("Proj. Range = %i (%i)",GetProjectileRange(), scriptInfo ? ((EffectItemExtra*)scriptInfo)->projectileRange : -1);
     if (EffectItemExtra* extra = (EffectItemExtra*)scriptInfo)
     {
         _MESSAGE("Overrides (Efit Mask = %08X, Mgef Mask = %08X %08X):",extra->efitFlagMask,UInt32(extra->mgefFlagMask >> 32), UInt32(extra->mgefFlagMask));
@@ -657,7 +733,7 @@ void EffectItem::Dump()
         gLog.Outdent();
     }
     else _MESSAGE("[No Overrides]");
-    _MESSAGE("Handler <%p> = ...",effectHandler);
+    _MESSAGE("Handler <%p> = ...",GetHandler());
     _MESSAGE("Cost (No Caster) = %f",MagickaCost());
     gLog.Outdent();
 }

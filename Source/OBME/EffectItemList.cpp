@@ -13,11 +13,11 @@ void EffectItemList::RemoveEffect(const EffectItem* item)
     EffectItem* itm = const_cast<EffectItem*>(item);
     if (itm && Find(itm) && itm->GetHostility() == Magic::kHostility_Hostile) hostileCount--;  // increment cached hostile effect count
     Remove(itm);   // remove item entry from list
-    itm->parentList = 0;    // clear item parent
+    itm->SetParentList(0);    // clear item parent
 }
 void EffectItemList::AddEffect(EffectItem* item)
 {
-    item->parentList = this;    // set item parent
+    item->SetParentList(this);    // set item parent
     PushBack(item); // append to effect list
     if (item->GetHostility() == Magic::kHostility_Hostile) hostileCount++;  // increment cached hostile effect count
 }
@@ -48,7 +48,7 @@ void EffectItemList::CopyEffectsFrom(const EffectItemList& copyFrom)
         if (EffectItem* item = (EffectItem*)node->data) 
         {   
             EffectItem* nItem = new EffectItem(*item->GetEffectSetting());  // create default item for specified effect setting
-            nItem->parentList = this; 
+            nItem->SetParentList(this); 
             nItem->CopyFrom(*item); // copying with parent set will update refs in CS 
             AddEffect(nItem); // add new item to list
         }

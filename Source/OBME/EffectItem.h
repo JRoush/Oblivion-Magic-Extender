@@ -17,6 +17,7 @@ namespace OBME {
 // argument classes from OBME
 class   EfitHandler;
 class   EffectSetting;
+class   EfitHandler;
 
 class EffectItem : public ::EffectItem
 {
@@ -34,33 +35,35 @@ public:
         kEfitFlagShift_Icon                 = 0x06, // Mask: use icon  
     };
 
-    // extension of ScriptEffectInfo struct for additional overrides
+    // extension of ScriptEffectInfo struct for additional fields
     class EffectItemExtra : public ScriptEffectInfo
     {
     public:
-        // members
-        //     /*00/00*/ UInt32         scriptFormID; // handler specific
-        //     /*04/04*/ UInt32         school; 
-        //     /*08/08*/ BSStringT      name;   // effect name, or complete effect descriptor if flag set
-        //     /*10/10*/ UInt32         fxMgefCode;
-        //     /*14/14*/ bool           hostile; // masked by Hostile flag in mgefFlagMask
-        //     /*15/15*/ UInt8          pad15[3];
-        MEMBER /*++/++*/ UInt64         mgefFlags; 
-        MEMBER /*++/++*/ UInt64         mgefFlagMask; 
-        MEMBER /*++/++*/ UInt16         efitFlags;
-        MEMBER /*++/++*/ UInt16         efitFlagMask;
-        MEMBER /*++/++*/ float          baseCost; // base cost, or total cost is flag set
-        MEMBER /*++/++*/ UInt32         resistAV; // resistance avCode.
-        MEMBER /*++/++*/ BSStringT      iconPath; // overrides effectsetting icon
-        // constructor, destructor
-        _LOCAL EffectItemExtra();  // zero initialize, with no overrides enabled
-        INLINE ~EffectItemExtra() {} // automatically invokes destructor for name+icon strings
-    };
+        // members - covered by override masks
+        //     /*00/00*/ UInt32             scriptFormID; // handler specific
+        //     /*04/04*/ UInt32             school; 
+        //     /*08/08*/ BSStringT          name;   // effect name, or complete effect descriptor if flag set
+        //     /*10/10*/ UInt32             fxMgefCode;
+        //     /*14/14*/ bool               hostile; // masked by Hostile flag in mgefFlagMask
+        //     /*15/15*/ UInt8              pad15[3];
+        MEMBER /*++/++*/ UInt64             mgefFlags; 
+        MEMBER /*++/++*/ UInt64             mgefFlagMask; 
+        MEMBER /*++/++*/ UInt16             efitFlags;
+        MEMBER /*++/++*/ UInt16             efitFlagMask;
+        MEMBER /*++/++*/ float              baseCost; // base cost, or total cost is flag set
+        MEMBER /*++/++*/ UInt32             resistAV; // resistance avCode.
+        MEMBER /*++/++*/ BSStringT          iconPath; // overrides effectsetting icon
 
-    // additional members
-    MEMBER /*++/++*/ ::EffectItemList*      parentList;
-    MEMBER /*++/++*/ EfitHandler*           effectHandler;
-    MEMBER /*++/++*/ SInt32                 projectileRange;
+        // members - nonoverride fields
+        MEMBER /*++/++*/ ::EffectItemList*  parentList; // pointer to parent effect item list
+        MEMBER /*++/++*/ EfitHandler*       effectHandler;  // handler object
+        MEMBER /*++/++*/ SInt32             projectileRange;  // projectile range
+
+        // constructor, destructor, validator
+        _LOCAL bool         IsEmpty(); // returns true if all fields/override masks are set to default values
+        _LOCAL EffectItemExtra();  // zero initialize, with no overrides enabled
+        _LOCAL ~EffectItemExtra(); // destroy name+icon strings and handler object
+    };
 
     // methods - other effect items
     _LOCAL bool                 CompareTo(const EffectItem& compareTo) const;
@@ -69,11 +72,15 @@ public:
     //_LOCAL bool                 Match(const EffectItem& compareTo);
     #endif
 
-    // methods - basic parameters
+    // methods - non-override parameters
     INLINE EffectSetting*       GetEffectSetting() const {return (OBME::EffectSetting*)effect;} // for convenience
     _LOCAL void                 SetEffectSetting(const EffectSetting& mgef);
-    _LOCAL SInt32               GetProjectileRange() const; // returns -1 if effect cannot or does not have projectile range
-    _LOCAL bool                 SetProjectileRange(SInt32 value);  // returns false on failure
+    _LOCAL ::EffectItemList*    GetParentList() const;
+    _LOCAL void                 SetParentList(::EffectItemList* list);
+    _LOCAL EfitHandler*         GetHandler() const;
+    _LOCAL void                 SetHandler(EfitHandler* handler);
+    _LOCAL SInt32               GetProjectileRange() const;             // returns -1 if effect cannot or does not have projectile range
+    _LOCAL bool                 SetProjectileRange(SInt32 value);       // returns false on failure 
 
     // methods - overrides
     _LOCAL bool                 IsEfitFieldOverridden(UInt32 flagShift) const;
@@ -97,7 +104,7 @@ public:
     _LOCAL UInt32               GetResistAV() const;
     _LOCAL void                 SetResistAV(UInt32 avCode);             // set resistAV override
     _LOCAL const char*          GetEffectIcon() const;
-    _LOCAL void                 SetEffectIcon(const char* iconPath);    // set icon override  
+    _LOCAL void                 SetEffectIcon(const char* iconPath);    // set icon override 
 
     // methods - calculated properties
     _LOCAL BSStringT            GetDisplayText() const;

@@ -1,9 +1,13 @@
 Effect Item
 ===========
-Size of EffectItem and EffectItemExtra are extended in OBME.  This requires hooks into game code
-for the ctor, dtor, clone, copy, & compare functions (as it would with any class).  It also requires
-manually patching the AddEffectItem obse code and friends, because these functions actually allocate
-& initialize new effect items manually instead of using the game code.  
+There is no isolated method in the CS for allocating new effect items.  Because they seem like something many
+3rd party plugins will want to create, it is important that OBME::EffectItem be the same size as ::EffectItem.
+New fields are added to the 'ScriptInfo' structure instead.  This has two major implications:
+    -   the scriptInfo block can't be constructed by 3rd party plugins.  This will require a manual patch to
+        the obse script commands AddEffectItem,CopyEffectItem, (possibly RemoveEffectItem?)
+    -   most effect items will now have an attached extra object, increasing their size by a factor of ~3.
+        There are about 5500 effect items in Oblivion.esm, so the increase from 36 bytes to ~110 bytes will use an extra ~400k of memory
+Fields:
 +	EffectCode
 +	Magnitude
 +	Duration
@@ -26,11 +30,11 @@ manually patching the AddEffectItem obse code and friends, because these functio
     +   BaseCost(RSH) - override base magicka cost for parent effect in autocalc
     +   Icon(RSH)
     +   ResistAV(RSH)
-    +   OverallCost(RSH) - overrides autocalc cost for single effect item
+    +   OverallCost(RSH) - overrides autocalc cost for single effect item    
+    +   ParentForm(RSH) - magic item / sigil stone to which this item belongs
+    +   EffectHandler(RSH):  pointer to EffectHandler structure that stores handler specific data & overrides.  manages CS subdialogs and in-game menus
+    +   Projectile Range(RSH) - projectile range (in feet).  used only if NoMaxRange flag is false
 +	MagickaCost(cached) - set to -1.0 when cache is invalidated
-+   ParentForm(RSH) - magic item / sigil stone to which this item belongs
-+   EffectHandler(RSH):  pointer to EffectHandler structure that stores handler specific data & overrides.  manages CS subdialogs and in-game menus
-+   Projectile Range(RSH) - projectile range (in feet).  used only if NoMaxRange flag is false
 
 File Format Notes:
 ==================

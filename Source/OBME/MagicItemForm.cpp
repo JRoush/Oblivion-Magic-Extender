@@ -15,7 +15,7 @@ void ReplaceVanillaEffectItems(::EffectItemList* list)  // TODO - move this func
     {
         EffectItem* item = EffectItem::CreateCopyFromVanilla(effnode->data,true);    // construct an OBME::EffectItem copy 
         effnode->data =  item;     
-        item->parentList = list;
+        item->SetParentList(list);
     }
 }
 void SpellItem::InitHooks()

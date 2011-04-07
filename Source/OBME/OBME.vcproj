@@ -516,6 +516,14 @@
 				RelativePath=".\EffectItem_hooks.cpp"
 				>
 			</File>
+			<File
+				RelativePath=".\EffectItemList.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\EffectItemList.h"
+				>
+			</File>
 		</Filter>
 		<File
 			RelativePath=".\CSE_Interface.h"

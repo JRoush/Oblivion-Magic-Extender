@@ -12,6 +12,7 @@
 #include "OBME/EffectHandlers/EffectHandler.h"
 #include "OBME/MagicGroup.h"
 #include "OBME/EffectItem.h"
+#include "OBME/EffectItemList.h"
 #include "OBME/MagicItemForm.h"
 
 /*--------------------------------------------------------------------------------------------*/
@@ -36,6 +37,7 @@ extern "C" _declspec(dllexport) void* Initialize()
     OBME::EffectHandler::Initialize();
     OBME::EffectSetting::Initialize();
     OBME::EffectItem::InitHooks();
+    OBME::EffectItemList::InitHooks();
     OBME::SpellItem::InitHooks();
     
     // initialization complete

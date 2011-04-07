@@ -561,6 +561,7 @@ void EffectSetting::GetFromDialog(HWND dialog)
 void EffectSetting::CleanupDialog(HWND dialog)
 {
     _DMESSAGE("Cleanup MGEF Dialog");
+    GetHandler().CleanupDialog(dialog);
     ::EffectSetting::CleanupDialog(dialog);
     MagicGroupList::ComponentDlgCleanup(dialog);
 }

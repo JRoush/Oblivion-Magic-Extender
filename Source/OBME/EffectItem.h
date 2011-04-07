@@ -1,11 +1,10 @@
 /* 
-    OBME expansion of the EffectItem, EffectItemList
+    OBME expansion of the EffectItem
 
     OBME::EffectItem will replace all instances ::EffectItem, but OBME::EffectItemList will be a purely
     noninstantiated class, used only for new methods.  Because MagicItem & SigilStone will still use
     the original EffectItemList, all OBME code will have to explicitly cast to OBME::EffectItem where
     necessary.
-
 */
 #pragma once
 
@@ -61,10 +60,10 @@ public:
     // additional members
     MEMBER /*++/++*/ ::EffectItemList*      parentList;
     MEMBER /*++/++*/ EfitHandler*           effectHandler;
-    MEMBER /*++/++*/ UInt32                 projectileRange;
+    MEMBER /*++/++*/ SInt32                 projectileRange;
 
     // methods - other effect items
-    //_LOCAL bool                 CompareTo(const EffectItem& compareTo) const;
+    _LOCAL bool                 CompareTo(const EffectItem& compareTo) const;
     _LOCAL void                 CopyFrom(const EffectItem& copyFrom); 
     #ifdef OBLIVION
     //_LOCAL bool                 Match(const EffectItem& compareTo);
@@ -98,18 +97,28 @@ public:
     _LOCAL UInt32               GetResistAV() const;
     _LOCAL void                 SetResistAV(UInt32 avCode);             // set resistAV override
     _LOCAL const char*          GetEffectIcon() const;
-    _LOCAL void                 SetEffectIcon(const char* iconPath);    // set icon override      
+    _LOCAL void                 SetEffectIcon(const char* iconPath);    // set icon override  
+
+    // methods - calculated properties
+    _LOCAL BSStringT            GetDisplayText() const;
+    _LOCAL void                 SetDisplayText(const char* text);       // set effect descriptor override
     #ifdef OBLIVION    
     //_LOCAL BSStringT            GetDisplayText(UInt32 magicType, float effectiveness, bool noDuration, bool noRange, bool onStrikeRange) const; 
     //_LOCAL BSStringT            GetDisplayText(const MagicItem& parentItem, float effectiveness = 1.0) const; 
-    //_LOCAL void                 GetAVQualifiedName(char* buffer) const; 
+    //_LOCAL void                 GetAVQualifiedName(char* buffer) const;     
     #endif
-
-    // methods - magicka cost
     _LOCAL float                MagickaCost(); // get no-caster magicka cost
-    _LOCAL void                 SetMagickaCost(float nCost); // set overall no-caster cost override
-    #ifdef OBLIVION
     _LOCAL float                MagickaCostForCaster(Actor* caster = 0); // magicka cost modified by caster skill
+    _LOCAL void                 SetMagickaCost(float nCost); // set overall no-caster cost override
+
+    // methods - serialization & reference management
+    //_LOCAL bool                 Load(TESFile& file, const char* parentEditorID);
+    //_LOCAL void                 Save(); 
+    _LOCAL void                 Link(); // converts type codes into pointers where needed, and increments ref counts in CS
+    _LOCAL void                 Unlink(); // converts pointers to typecodes where needed, and decrements ref counts in CS
+    _LOCAL void                 ReplaceMgefCodeRef(UInt32 oldMgefCode, UInt32 newMgefCode); // replace all uses of old code with new code
+    #ifndef OBLIVION
+    _LOCAL void                 RemoveFormReference(TESForm& form);
     #endif
 
     // methods - dialog interface, reference management for CS
@@ -118,12 +127,9 @@ public:
     _LOCAL void                 InitializeDialog(HWND dialog);
     _LOCAL void                 SetInDialog(HWND dialog);
     _LOCAL void                 GetFromDialog(HWND dialog); 
+    _LOCAL void                 CleanupDialog(HWND dialog);
     _LOCAL bool                 HandleDialogEvent(HWND dialog, int uMsg, WPARAM wParam, LPARAM lParam, LRESULT& result); 
     #endif
-
-    // reference management
-    _LOCAL void                 RemoveFormReference(TESForm& form);
-    _LOCAL void                 ReplaceMgefCodeRef(UInt32 oldMgefCode, UInt32 newMgefCode); // replace all uses of old code with new code
 
     // methods: hooks & debugging
     _LOCAL static void          InitHooks();

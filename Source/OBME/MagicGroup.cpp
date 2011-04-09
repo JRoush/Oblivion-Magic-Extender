@@ -5,7 +5,9 @@
 #include "API/TES/TESDataHandler.h"
 #include "API/TESFiles/TESFile.h"
 #include "API/CSDialogs/TESDialog.h"
+#include "API/CSDialogs/TESFormSelection.h"
 #include "Components/TESFileFormats.h"
+#include "Components/FormRefCounter.h"
 #include "Utilities/Memaddr.h"
 
 // local declaration of module handle
@@ -370,19 +372,17 @@ void MagicGroupList::CopyComponentFrom(const BaseFormComponent& source)
     if (!src) return;   // invalid polymorphic type
     
     // clear refs to groups currently in list, add refs to groups in source list
-    #ifndef OBLIVION
     if (parentForm)
     {
         for (GroupEntry* entry = groupList; entry; entry = entry->next)
         {
-            if (entry->group) entry->group->RemoveCrossReference(parentForm);
+            if (entry->group) FormRefCounter::RemoveReference(parentForm,entry->group);
         }
         for (GroupEntry* entry = src->groupList; entry; entry = entry->next)
         {
-            if (entry->group) entry->group->AddCrossReference(parentForm);
+            if (entry->group) FormRefCounter::AddReference(parentForm,entry->group);
         }
     }
-    #endif
     // clear existing list
     ClearMagicGroups(); 
     // copy entries from source list
@@ -571,7 +571,35 @@ bool MagicGroupList::ComponentDlgMsgCallback(HWND dialog, UINT uMsg, WPARAM wPar
         }
         }
         break;
-    }    
+    } 
+    case TESDialog::WM_CANDROPSELECTION:
+    {
+        if ((UInt8)wParam == MagicGroup::extendedForm.FormType() && (HWND)lParam == GetDlgItem(dialog,IDC_MGLS_GROUPLIST))
+        {
+            result = true;  return true;    // allow drag & drop of magic groups onto group listview control
+        }
+        break;
+    }
+    case TESDialog::WM_DROPSELECTION:
+    {        
+        ctl = GetDlgItem(dialog,IDC_MGLS_GROUPLIST);
+        if (!lParam || WindowFromPoint(*(POINT*)lParam) != ctl) break;    // bad drop point
+        if (!TESFormSelection::primarySelection || !TESFormSelection::primarySelection->selections) break;  // bad selection buffer
+        MagicGroup* group = dynamic_cast<MagicGroup*>(TESFormSelection::primarySelection->selections->form);
+        if (!group) break;   // selection is not a MagicGroup
+        _VMESSAGE("Add Group via drop"); 
+        GroupEntry* entry = GetMagicGroup(group);
+        if (!entry)
+        {
+            AddMagicGroup(group,0);  // Add the group, with weight zero, to the list
+            entry = GetMagicGroup(group);                    
+            TESListView::InsertItem(ctl,entry,0,0); // insert new item
+            ListView_SortItems(ctl,CompareListEntries,GetWindowLong(ctl,GWL_USERDATA)); // resort items
+        }                
+        TESListView::ForceSelectItem(ctl,TESListView::LookupByData(ctl,entry)); // force select new entry
+        TESFormSelection::primarySelection->ClearSelection(true);   // clear selection buffer
+        return true;
+    }
     }
     return false;
 }                   
@@ -635,9 +663,7 @@ void MagicGroupList::LinkComponent()
         if (entry->group)
         {
             // update cross refs in CS
-            #ifndef OBLIVION
-            if (parentForm) entry->group->AddCrossReference(parentForm);
-            #endif
+            if (parentForm) FormRefCounter::AddReference(parentForm,entry->group);
             // resolved successfully, move to next entry
             lastPtr = &entry->next;
             entry = entry->next;
@@ -659,9 +685,7 @@ void MagicGroupList::UnlinkComponent()
     TESForm* parentForm = dynamic_cast<TESForm*>(this);
     for (GroupEntry* entry = groupList; entry; entry = entry->next)
     {
-        #ifndef OBLIVION
-        if (parentForm) entry->group->RemoveCrossReference(parentForm);
-        #endif
+        if (parentForm) FormRefCounter::RemoveReference(parentForm,entry->group);
         if (entry->group) entry->group = (MagicGroup*)entry->group->formID;
     }
 }

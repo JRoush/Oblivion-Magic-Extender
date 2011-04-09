@@ -4,6 +4,7 @@
 
 #include "API/TESFiles/TESFile.h"
 #include "API/CSDialogs/TESDialog.h"
+#include "Components/FormRefCounter.h"
 
 // global method for returning small enumerations as booleans
 inline bool BoolEx(UInt8 value) {return *(bool*)&value;}
@@ -22,7 +23,7 @@ void BoundItemMgefHandler::LinkHandler()
 {
     TESForm* assocItem = TESForm::LookupByFormID(parentEffect.mgefParam);
     #ifndef OBLIVION        
-    if (assocItem)  assocItem->AddCrossReference(&parentEffect);   // add a cross ref for the associated form
+    if (assocItem)  FormRefCounter::AddReference(&parentEffect,assocItem);   // add a cross ref for the associated form
     #endif
     if (!parentEffect.GetFlag(EffectSetting::kMgefFlagShift_UseArmor) && !parentEffect.GetFlag(EffectSetting::kMgefFlagShift_UseWeapon))
     {

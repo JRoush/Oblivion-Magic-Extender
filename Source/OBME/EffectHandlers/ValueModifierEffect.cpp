@@ -7,6 +7,7 @@
 #include "API/CSDialogs/TESDialog.h"
 #include "API/Actors/ActorValues.h"
 #include "Components/TESFileFormats.h"
+#include "Components/FormRefCounter.h"
 
 // global method for returning small enumerations as booleans
 inline bool BoolEx(UInt8 value) {return *(bool*)&value;}
@@ -36,18 +37,14 @@ void ValueModifierMgefHandler::SaveHandlerChunk()
 void ValueModifierMgefHandler::LinkHandler()
 {
     // add cross reference for mgefParam
-    #ifndef OBLIVION
     if (TESForm* form = TESFileFormats::GetFormFromCode(parentEffect.mgefParam,TESFileFormats::kResType_ActorValue)) 
-        form->AddCrossReference(&parentEffect);
-    #endif
+        FormRefCounter::AddReference(&parentEffect,form);
 }
 void ValueModifierMgefHandler::UnlinkHandler() 
 {
     // remove cross reference for mgefParam
-    #ifndef OBLIVION
     if (TESForm* form = TESFileFormats::GetFormFromCode(parentEffect.mgefParam,TESFileFormats::kResType_ActorValue)) 
-        form->RemoveCrossReference(&parentEffect);
-    #endif
+        FormRefCounter::RemoveReference(&parentEffect,form);
 }
 // copy/compare
 void ValueModifierMgefHandler::CopyFrom(const MgefHandler& copyFrom)
@@ -56,12 +53,10 @@ void ValueModifierMgefHandler::CopyFrom(const MgefHandler& copyFrom)
     if (!src) return; // wrong polymorphic type
 
     // incr/decr cross refs for mgefParam
-    #ifndef OBLIVION
     if (TESForm* form = TESFileFormats::GetFormFromCode(parentEffect.mgefParam,TESFileFormats::kResType_ActorValue)) 
-        form->RemoveCrossReference(&parentEffect);
+        FormRefCounter::RemoveReference(&parentEffect,form);
     if (TESForm* form = TESFileFormats::GetFormFromCode(src->parentEffect.mgefParam,TESFileFormats::kResType_ActorValue)) 
-        form->AddCrossReference(&parentEffect);
-    #endif
+        FormRefCounter::AddReference(&parentEffect,form);
 
     magIsPercentage = src->magIsPercentage;
     percentageAVPart = src->percentageAVPart;
@@ -232,40 +227,33 @@ void ValueModifierMgefHandler::GetFromDialog(HWND dialog)
 ValueModifierEfitHandler::ValueModifierEfitHandler(EffectItem& item) 
 : EfitHandler(item), overrideFlags(0), avPart(ValueModifierMgefHandler::kAVPart_Damage), detrimental(false), recovers(false)
 {
-    // default value of ActorValue override flag is set by SetParentItemDefaultFields(), at the same time it sets the initial actorValue code
-}
-void ValueModifierEfitHandler::SetParentItemDefaultFields()
-{
-    // set default avCode for effects that use explicit ev ranges
-    overrideFlags |= kOverride_ActorValue;
-    if (parentItem.GetMgefFlag(EffectSetting::kMgefFlagShift_UseSkill)) parentItem.actorValue = ActorValues::kActorVal_Armorer;
-    else if (parentItem.GetMgefFlag(EffectSetting::kMgefFlagShift_UseAttribute)) parentItem.actorValue = ActorValues::kActorVal_Strength;
-    else overrideFlags &= !kOverride_ActorValue; // doesn't use local AV
+    if (parentItem.GetMgefFlag(EffectSetting::kMgefFlagShift_UseSkill) || parentItem.GetMgefFlag(EffectSetting::kMgefFlagShift_UseAttribute))
+    {
+        // effects that use explicit skill/attribute ranges have AV override enabled by default
+        // NOTE - the relevant EffectItem code must acutally initialize the AV value
+        overrideFlags |= kOverride_ActorValue;
+    }
 }
 // serialization
 void ValueModifierEfitHandler::LinkHandler()
 {
     // add cross reference for actorValue
-    #ifndef OBLIVION
     if (overrideFlags & kOverride_ActorValue)
     {
         TESForm* parentForm = dynamic_cast<TESForm*>(parentItem.GetParentList());
         TESForm* form = TESFileFormats::GetFormFromCode(parentItem.actorValue,TESFileFormats::kResType_ActorValue);
-        if (parentForm && form) form->AddCrossReference(parentForm);
+        if (parentForm && form) FormRefCounter::AddReference(parentForm,form);
     }
-    #endif
 }
 void ValueModifierEfitHandler::UnlinkHandler()
 {
     // remove cross reference for actorValue
-    #ifndef OBLIVION
     if (overrideFlags & kOverride_ActorValue)
     {
         TESForm* parentForm = dynamic_cast<TESForm*>(parentItem.GetParentList());
         TESForm* form = TESFileFormats::GetFormFromCode(parentItem.actorValue,TESFileFormats::kResType_ActorValue);
-        if (parentForm && form) form->RemoveCrossReference(parentForm);
+        if (parentForm && form) FormRefCounter::RemoveReference(parentForm,form);
     }
-    #endif
 }
 // copy/compare
 void ValueModifierEfitHandler::CopyFrom(const EfitHandler& copyFrom)
@@ -274,19 +262,17 @@ void ValueModifierEfitHandler::CopyFrom(const EfitHandler& copyFrom)
     if (!src) return; // wrong polymorphic type
 
     // actorValue
-    #ifndef OBLIVION
     TESForm* parentForm = dynamic_cast<TESForm*>(parentItem.GetParentList());
     if (overrideFlags & kOverride_ActorValue)
     {        
         TESForm* form = TESFileFormats::GetFormFromCode(parentItem.actorValue,TESFileFormats::kResType_ActorValue);
-        if (parentForm && form) form->RemoveCrossReference(parentForm);
+        if (parentForm && form) FormRefCounter::RemoveReference(parentForm,form);
     }
     if (src->overrideFlags & kOverride_ActorValue)
     {        
         TESForm* form = TESFileFormats::GetFormFromCode(src->parentItem.actorValue,TESFileFormats::kResType_ActorValue);
-        if (parentForm && form) form->AddCrossReference(parentForm);
+        if (parentForm && form) FormRefCounter::AddReference(parentForm,form);
     }
-    #endif
     parentItem.actorValue = src->parentItem.actorValue;
 
     // members
@@ -333,7 +319,7 @@ void ValueModifierEfitHandler::RemoveFormReference(TESForm& form)
     if (overrideFlags & kOverride_ActorValue)
     {
         if (&form == TESFileFormats::GetFormFromCode(parentItem.actorValue,TESFileFormats::kResType_ActorValue))
-            parentItem.actorValue = ActorValues::kActorVal__UBOUND;    // reset value to 'none'
+            overrideFlags &= ~kOverride_ActorValue; // clear av override
     }    
 }
 // child dialog in CS

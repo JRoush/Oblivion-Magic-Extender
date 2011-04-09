@@ -14,6 +14,7 @@
 #include "API/TESFiles/TESFile.h"
 #include "API/Actors/ActorValues.h"
 #include "Components/TESFileFormats.h"
+#include "Components/FormRefCounter.h"
 
 #include <map>
 
@@ -651,37 +652,35 @@ void EffectSetting::LinkForm()
     if (formFlags & kFormFlags_Linked) return;  // form already linked
     _VMESSAGE("Linking %s", GetDebugDescEx().c_str());
 
-    // school, resistAV
-    #ifndef OBLIVION    
-    if (TESForm* form = TESFileFormats::GetFormFromCode(GetResistAV(),TESFileFormats::kResType_ActorValue)) form->AddCrossReference(this);  // resistAV
+    // resistAV 
+    if (TESForm* form = TESFileFormats::GetFormFromCode(GetResistAV(),TESFileFormats::kResType_ActorValue))
+    {
+        FormRefCounter::AddReference(this,form);  
+    }
     // TODO - school
-    #endif
 
     // VFX, AFX
     // NOTE: because TESSound, TESEffectShader, and TESObjectLIGH are not yet defined in COEF, the
     // normal dynamic cast check on the form pointer is omitted.
     // If any of these formIDs refer to forms of the wrong type, all hell will break loose.
-    castingSound = (TESSound*)TESForm::LookupByFormID((UInt32)castingSound);
-    boltSound = (TESSound*)TESForm::LookupByFormID((UInt32)boltSound);
-    hitSound = (TESSound*)TESForm::LookupByFormID((UInt32)hitSound);
-    areaSound = (TESSound*)TESForm::LookupByFormID((UInt32)areaSound);
-    effectShader = (TESEffectShader*)TESForm::LookupByFormID((UInt32)effectShader);
-    enchantShader = (TESEffectShader*)TESForm::LookupByFormID((UInt32)enchantShader);
-    light = (TESObjectLIGH*)TESForm::LookupByFormID((UInt32)light);
-    #ifndef OBLIVION
-    if (castingSound) ((TESForm*)castingSound)->AddCrossReference(this);
-    if (boltSound) ((TESForm*)boltSound)->AddCrossReference(this);
-    if (hitSound) ((TESForm*)hitSound)->AddCrossReference(this);
-    if (effectShader) ((TESForm*)effectShader)->AddCrossReference(this);
-    if (enchantShader) ((TESForm*)enchantShader)->AddCrossReference(this);
-    if (light) ((TESForm*)light)->AddCrossReference(this);    
-    #endif
+    castingSound    = (TESSound*)TESForm::LookupByFormID((UInt32)castingSound);
+    boltSound       = (TESSound*)TESForm::LookupByFormID((UInt32)boltSound);
+    hitSound        = (TESSound*)TESForm::LookupByFormID((UInt32)hitSound);
+    areaSound       = (TESSound*)TESForm::LookupByFormID((UInt32)areaSound);
+    effectShader    = (TESEffectShader*)TESForm::LookupByFormID((UInt32)effectShader);
+    enchantShader   = (TESEffectShader*)TESForm::LookupByFormID((UInt32)enchantShader);
+    light           = (TESObjectLIGH*)TESForm::LookupByFormID((UInt32)light);
+    if (castingSound)   FormRefCounter::AddReference(this,(TESForm*)castingSound);
+    if (boltSound)      FormRefCounter::AddReference(this,(TESForm*)boltSound);
+    if (hitSound)       FormRefCounter::AddReference(this,(TESForm*)hitSound);
+    if (effectShader)   FormRefCounter::AddReference(this,(TESForm*)effectShader);
+    if (enchantShader)  FormRefCounter::AddReference(this,(TESForm*)enchantShader);
+    if (light)          FormRefCounter::AddReference(this,(TESForm*)light);    
 
     // magic groups
     MagicGroupList::LinkComponent();
 
     // counter effects - unrecognized counters are discarded, to prevent 'dirty' edits in mgef dialog
-    #ifndef OBLIVION
     UInt32 j = 0;
     for (int i = 0; i < numCounters; i++)
     {
@@ -690,12 +689,11 @@ void EffectSetting::LinkForm()
         if (::EffectSetting* counter = EffectSetting::LookupByCode(code)) 
         {
             counterArray[j] = code; j++;
-            counter->AddCrossReference(this);
+            FormRefCounter::AddReference(this,counter);
         }
         else _WARNING("%s has unrecognized counter effect code '%4.4s' {%08X}",GetDebugDescEx().c_str(),&code,code);
     }
     numCounters = j;
-    #endif
     
     // handler (includes mgefParam)
     GetHandler().LinkHandler(); // link handler object
@@ -703,9 +701,7 @@ void EffectSetting::LinkForm()
     // cost callback
     // TODO: because Script is not yet defined in COEF, the normal dynamic cast check on the form pointer is omitted.
     costCallback = (Script*)TESForm::LookupByFormID((UInt32)costCallback);
-    #ifndef OBLIVION
-    if (costCallback) ((TESForm*)costCallback)->AddCrossReference(this);
-    #endif
+    if (costCallback) FormRefCounter::AddReference(this,(TESForm*)costCallback);
 
     // set linked flag
     formFlags |= kFormFlags_Linked;
@@ -725,7 +721,7 @@ void EffectSetting::CopyFrom(TESForm& copyFrom)
         BSStringT desc; copyFrom.GetDebugDescription(desc);        
         _WARNING("Attempted copy from %s",desc.c_str());
         return;
-    }    
+    }   
 
     // copy BaseFormComponents
     TESForm::CopyAllComponentsFrom(copyFrom);
@@ -735,38 +731,38 @@ void EffectSetting::CopyFrom(TESForm& copyFrom)
     enchantFactor = mgef->enchantFactor;
     barterFactor = mgef->barterFactor;
     projSpeed = mgef->projSpeed;
-    // school, resistAV
-    #ifndef OBLIVION    
-    if (TESForm* form = TESFileFormats::GetFormFromCode(GetResistAV(),TESFileFormats::kResType_ActorValue)) form->RemoveCrossReference(this);  // resistAV
-    if (TESForm* form = TESFileFormats::GetFormFromCode(mgef->GetResistAV(),TESFileFormats::kResType_ActorValue)) form->AddCrossReference(this); 
-    // TODO - school
-    #endif
+
+    // resistAV 
+    if (TESForm* form = TESFileFormats::GetFormFromCode(GetResistAV(),TESFileFormats::kResType_ActorValue)) FormRefCounter::RemoveReference(this,form); 
+    if (TESForm* form = TESFileFormats::GetFormFromCode(mgef->GetResistAV(),TESFileFormats::kResType_ActorValue)) FormRefCounter::AddReference(this,form); 
     SetResistAV(mgef->GetResistAV()); // standardize 'no resistance' code
+    
+    // school - TODO: update ref counts
     school = mgef->school;
+
     // VFX, AFX
-    #ifndef OBLIVION
-    if (light)  ((TESForm*)light)->RemoveCrossReference(this);
-    if (mgef->light)    ((TESForm*)mgef->light)->AddCrossReference(this);
-    if (effectShader)  ((TESForm*)effectShader)->RemoveCrossReference(this);
-    if (mgef->effectShader)    ((TESForm*)mgef->effectShader)->AddCrossReference(this);
-    if (enchantShader)  ((TESForm*)enchantShader)->RemoveCrossReference(this);
-    if (mgef->enchantShader)    ((TESForm*)mgef->enchantShader)->AddCrossReference(this);
-    if (castingSound)  ((TESForm*)castingSound)->RemoveCrossReference(this);
-    if (mgef->castingSound)    ((TESForm*)mgef->castingSound)->AddCrossReference(this);
-    if (boltSound)  ((TESForm*)boltSound)->RemoveCrossReference(this);
-    if (mgef->boltSound)    ((TESForm*)mgef->boltSound)->AddCrossReference(this);
-    if (hitSound)  ((TESForm*)hitSound)->RemoveCrossReference(this);
-    if (mgef->hitSound)    ((TESForm*)mgef->hitSound)->AddCrossReference(this);
-    if (areaSound)  ((TESForm*)areaSound)->RemoveCrossReference(this);
-    if (mgef->areaSound)    ((TESForm*)mgef->areaSound)->AddCrossReference(this);
-    #endif
+    if (light)              FormRefCounter::RemoveReference(this,(TESForm*)light);
+    if (mgef->light)        FormRefCounter::AddReference(this,(TESForm*)mgef->light);
     light = mgef->light;
+    if (effectShader)       FormRefCounter::RemoveReference(this,(TESForm*)effectShader);
+    if (mgef->effectShader) FormRefCounter::AddReference(this,(TESForm*)mgef->effectShader);
     effectShader = mgef->effectShader;
+    if (enchantShader)      FormRefCounter::RemoveReference(this,(TESForm*)enchantShader);
+    if (mgef->enchantShader)FormRefCounter::AddReference(this,(TESForm*)mgef->enchantShader);
     enchantShader = mgef->enchantShader;
+    if (castingSound)       FormRefCounter::RemoveReference(this,(TESForm*)castingSound);
+    if (mgef->castingSound) FormRefCounter::AddReference(this,(TESForm*)mgef->castingSound);
     castingSound = mgef->castingSound;
+    if (boltSound)          FormRefCounter::RemoveReference(this,(TESForm*)boltSound);
+    if (mgef->boltSound)    FormRefCounter::AddReference(this,(TESForm*)mgef->boltSound);
     boltSound = mgef->boltSound;
+    if (hitSound)           FormRefCounter::RemoveReference(this,(TESForm*)hitSound);
+    if (mgef->hitSound)     FormRefCounter::AddReference(this,(TESForm*)mgef->hitSound);
     hitSound = mgef->hitSound;
+    if (areaSound)          FormRefCounter::RemoveReference(this,(TESForm*)areaSound);
+    if (mgef->areaSound)    FormRefCounter::AddReference(this,(TESForm*)mgef->areaSound);    
     areaSound = mgef->areaSound;
+
     // flags
     mgefFlags = mgef->mgefFlags;
     mgefObmeFlags = mgef->mgefObmeFlags;
@@ -777,13 +773,11 @@ void EffectSetting::CopyFrom(TESForm& copyFrom)
     // counter array
     if (counterArray)
     {
-        #ifndef OBLIVION
         // clear refs to counter effects
         for (int i = 0; i < numCounters; i++)
         {
-            if (::EffectSetting* counter = EffectSetting::LookupByCode(counterArray[i])) {counter->RemoveCrossReference(this);}
+            if (::EffectSetting* counter = EffectSetting::LookupByCode(counterArray[i])) { FormRefCounter::RemoveReference(this,counter); }
         }
-        #endif
         // clear current counter array
         MemoryHeap::FormHeapFree(counterArray);
         counterArray = 0;
@@ -796,23 +790,22 @@ void EffectSetting::CopyFrom(TESForm& copyFrom)
         for (int i = 0; i < numCounters; i++)
         {
             counterArray[i] = mgef->counterArray[i];
-            #ifndef OBLIVION
-            if (::EffectSetting* counter = EffectSetting::LookupByCode(counterArray[i])) {counter->AddCrossReference(this);}
-            #endif
+            if (::EffectSetting* counter = EffectSetting::LookupByCode(counterArray[i])) { FormRefCounter::AddReference(this,counter); }
         }
     }
 
     // handler & mgefParam
-    GetHandler().UnlinkHandler();   // clear any references made by the handler
-    SetHandler(MgefHandler::Create(mgef->GetHandler().HandlerCode(),*this));
+    if (GetHandler().HandlerCode() != mgef->GetHandler().HandlerCode())
+    {
+        GetHandler().UnlinkHandler();   // clear any references made by the handler
+        SetHandler(MgefHandler::Create(mgef->GetHandler().HandlerCode(),*this));
+    }
     GetHandler().CopyFrom(mgef->GetHandler());   // manages CrossRefs for mgefParam
     mgefParam = mgef->mgefParam;    // handler only copies if it uses the param
 
     // cost callback & dispel factor
-    #ifndef OBLIVION
-    if (costCallback) ((TESForm*)costCallback)->RemoveCrossReference(this);
-    if (mgef->costCallback) ((TESForm*)mgef->costCallback)->AddCrossReference(this);
-    #endif
+    if (costCallback) FormRefCounter::RemoveReference(this,(TESForm*)costCallback);
+    if (mgef->costCallback) FormRefCounter::AddReference(this,(TESForm*)mgef->costCallback);
     costCallback = mgef->costCallback;
     dispelFactor = mgef->dispelFactor;
     
@@ -998,48 +991,43 @@ void EffectSetting::UnlinkForm()
      if (~formFlags & kFormFlags_Linked) return;  // form not linked
     _VMESSAGE("Unlinking %s", GetDebugDescEx().c_str());
 
-    // school, resistAV
-    #ifndef OBLIVION    
-    if (TESForm* form = TESFileFormats::GetFormFromCode(GetResistAV(),TESFileFormats::kResType_ActorValue)) form->RemoveCrossReference(this);  // resistAV
+    // resistAV   
+    if (TESForm* form = TESFileFormats::GetFormFromCode(GetResistAV(),TESFileFormats::kResType_ActorValue))
+    {
+        FormRefCounter::RemoveReference(this,form);
+    }
     // TODO - school
-    #endif
 
     // VFX, AFX
-    #ifndef OBLIVION
-    if (castingSound) ((TESForm*)castingSound)->RemoveCrossReference(this);
-    if (boltSound) ((TESForm*)boltSound)->RemoveCrossReference(this);
-    if (hitSound) ((TESForm*)hitSound)->RemoveCrossReference(this);
-    if (effectShader) ((TESForm*)effectShader)->RemoveCrossReference(this);
-    if (enchantShader) ((TESForm*)enchantShader)->RemoveCrossReference(this);
-    if (light) ((TESForm*)light)->RemoveCrossReference(this);    
-    #endif
-    if (castingSound) castingSound = (TESSound*)((TESForm*)castingSound)->formID;
-    if (boltSound) boltSound = (TESSound*)((TESForm*)boltSound)->formID;
-    if (hitSound) hitSound = (TESSound*)((TESForm*)hitSound)->formID;
-    if (effectShader) effectShader = (TESEffectShader*)((TESForm*)effectShader)->formID;
-    if (enchantShader) enchantShader = (TESEffectShader*)((TESForm*)enchantShader)->formID;
-    if (light) light = (TESObjectLIGH*)((TESForm*)light)->formID;
+    if (castingSound)   FormRefCounter::RemoveReference(this,(TESForm*)castingSound);
+    if (boltSound)      FormRefCounter::RemoveReference(this,(TESForm*)boltSound);
+    if (hitSound)       FormRefCounter::RemoveReference(this,(TESForm*)hitSound);
+    if (effectShader)   FormRefCounter::RemoveReference(this,(TESForm*)effectShader);
+    if (enchantShader)  FormRefCounter::RemoveReference(this,(TESForm*)enchantShader);
+    if (light)          FormRefCounter::RemoveReference(this,(TESForm*)light);    
+    if (castingSound)   castingSound = (TESSound*)((TESForm*)castingSound)->formID;
+    if (boltSound)      boltSound = (TESSound*)((TESForm*)boltSound)->formID;
+    if (hitSound)       hitSound = (TESSound*)((TESForm*)hitSound)->formID;
+    if (effectShader)   effectShader = (TESEffectShader*)((TESForm*)effectShader)->formID;
+    if (enchantShader)  enchantShader = (TESEffectShader*)((TESForm*)enchantShader)->formID;
+    if (light)          light = (TESObjectLIGH*)((TESForm*)light)->formID;
 
     // magic groups
     MagicGroupList::UnlinkComponent();
 
     // counter effects
-    #ifndef OBLIVION
     for (int i = 0; i < numCounters; i++)
     {
-        if (::EffectSetting* counter = EffectSetting::LookupByCode(counterArray[i])) {counter->RemoveCrossReference(this);}
+        if (::EffectSetting* counter = EffectSetting::LookupByCode(counterArray[i])) { FormRefCounter::RemoveReference(this,counter); }
     }
-    #endif
     
     // handler (includes mgefParam)
     GetHandler().UnlinkHandler(); // unlink handler object
 
     // cost callback
     if (costCallback)
-    {
-        #ifndef OBLIVION    
-        ((TESForm*)costCallback)->RemoveCrossReference(this); 
-        #endif
+    { 
+        FormRefCounter::RemoveReference(this,(TESForm*)costCallback); 
         costCallback = (Script*)((TESForm*)costCallback)->formID;
     }
 

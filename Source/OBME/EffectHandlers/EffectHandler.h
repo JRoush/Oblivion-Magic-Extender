@@ -151,7 +151,6 @@ public:
 
     // creation
     static EfitHandler*         Create(UInt32 handlerCode, EffectItem& item); // create polymorphic instance based on handler code. 
-    virtual void                SetParentItemDefaultFields(); // initialize actorVal, script formid on parent effect item & incr refs accordingly
 
     // serialization
     virtual bool                LoadHandlerChunk(TESFile& file, UInt32 RecordVersion);

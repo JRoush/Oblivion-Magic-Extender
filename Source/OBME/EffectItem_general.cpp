@@ -5,6 +5,7 @@
 
 #include "API/Actors/ActorValues.h"
 #include "Components/TESFileFormats.h"
+#include "Components/FormRefCounter.h"
 
 namespace OBME {
 
@@ -73,10 +74,8 @@ void EffectItem::CopyFrom(const EffectItem& copyFrom)
     // effect (automatically generates correct default handler item)
     if (GetEffectSetting() != copyFrom.GetEffectSetting())
     {
-        #ifndef OBLIVION
-        GetEffectSetting()->RemoveCrossReference(parent);
-        copyFrom.GetEffectSetting()->AddCrossReference(parent);
-        #endif
+        FormRefCounter::RemoveReference(parent,GetEffectSetting());
+        FormRefCounter::AddReference(parent,copyFrom.GetEffectSetting());
         if (GetHandler()) 
         {
             GetHandler()->UnlinkHandler(); // unlink handler to decr form refs
@@ -99,20 +98,19 @@ void EffectItem::CopyFrom(const EffectItem& copyFrom)
     // overrides
     EffectItemExtra* extra = (EffectItemExtra*)scriptInfo;
     EffectItemExtra* copyExtra = (EffectItemExtra*)copyFrom.scriptInfo;    
-    #ifndef OBLIVION // remove current form refs in overrides
-    if (IsEfitFieldOverridden(kEfitFlagShift_School)) // School
+    if (IsEfitFieldOverridden(kEfitFlagShift_School))   // School override form ref
     { 
         /* TODO - decr school form ref */ 
     }
-    if (IsEfitFieldOverridden(kEfitFlagShift_FXMgef)) // FX EffectSetting
+    if (IsEfitFieldOverridden(kEfitFlagShift_FXMgef))   // FX EffectSetting override form ref
     { 
-        if (EffectSetting* mgef = GetFXEffect()) mgef->RemoveCrossReference(parent);
+        if (EffectSetting* mgef = GetFXEffect()) FormRefCounter::RemoveReference(parent,mgef);
     }
-    if (IsEfitFieldOverridden(kEfitFlagShift_ResistAV)) // Resistance AV
+    if (IsEfitFieldOverridden(kEfitFlagShift_ResistAV)) // Resistance AV override form ref
     {
-        if (TESForm* form = TESFileFormats::GetFormFromCode(GetResistAV(),TESFileFormats::kResType_ActorValue)) form->RemoveCrossReference(parent);
+        if (TESForm* form = TESFileFormats::GetFormFromCode(GetResistAV(),TESFileFormats::kResType_ActorValue)) 
+            FormRefCounter::RemoveReference(parent,form);
     }
-    #endif
     if (copyExtra)
     {
         // create extra obj if necessary
@@ -132,20 +130,19 @@ void EffectItem::CopyFrom(const EffectItem& copyFrom)
         extra->resistAV = copyExtra->resistAV;
         extra->iconPath = copyExtra->iconPath;   
         // increment form refs in overrides
-        #ifndef OBLIVION 
         if (IsEfitFieldOverridden(kEfitFlagShift_School)) // School
         { 
             /* TODO - decr school form ref */ 
         }
         if (IsEfitFieldOverridden(kEfitFlagShift_FXMgef)) // FX EffectSetting
         { 
-            if (EffectSetting* mgef = GetFXEffect()) mgef->AddCrossReference(parent);
+            if (EffectSetting* mgef = GetFXEffect()) FormRefCounter::AddReference(parent,mgef);
         }
         if (IsEfitFieldOverridden(kEfitFlagShift_ResistAV)) // Resistance AV
         {
-            if (TESForm* form = TESFileFormats::GetFormFromCode(GetResistAV(),TESFileFormats::kResType_ActorValue)) form->AddCrossReference(parent);
+            if (TESForm* form = TESFileFormats::GetFormFromCode(GetResistAV(),TESFileFormats::kResType_ActorValue)) 
+                FormRefCounter::AddReference(parent,form);
         }
-        #endif
     }
     else if (extra)
     {
@@ -182,11 +179,14 @@ void EffectItem::SetEffectSetting(const EffectSetting& nEffect)
         _ERROR("No valid range available for EffectItem using %s",mgef.GetDebugDescEx().c_str());
     }
 
-    // reset handler
-    actorValue = 0; // handler may provide alternate init
-    if (scriptInfo) scriptInfo->scriptFormID = 0;  // handler may provide alternate init
+    // handler - actorValue param
+    if (mgef.GetFlag(EffectSetting::kMgefFlagShift_UseSkill)) actorValue = ActorValues::kActorVal_Armorer;  
+    else if (mgef.GetFlag(EffectSetting::kMgefFlagShift_UseAttribute)) actorValue = ActorValues::kActorVal_Strength;
+    else actorValue = 0;
+    // handler - scriptFormID param
+    SetEfitFieldOverride(kEfitFlagShift_ScriptFormID,false);
+    // handler - efithandler
     SetHandler(EfitHandler::Create(mgef.GetHandler().HandlerCode(),*this));
-    if (GetHandler()) GetHandler()->SetParentItemDefaultFields();
 }
 ::EffectItemList* EffectItem::GetParentList() const
 {
@@ -540,28 +540,24 @@ void EffectItem::Link()
     TESForm* parent = dynamic_cast<TESForm*>(GetParentList());
 
     // effect
-    #ifndef OBLIVION
-    GetEffectSetting()->AddCrossReference(parent);
-    #endif
+    FormRefCounter::AddReference(parent,GetEffectSetting());
 
     // handler
     if (GetHandler()) GetHandler()->LinkHandler();    // links actorValue, ScriptFormID as necessary
 
     // override form refs
-    #ifndef OBLIVION 
     if (IsEfitFieldOverridden(kEfitFlagShift_School)) // School
     { 
         /* TODO - decr school form ref */ 
     }
     if (IsEfitFieldOverridden(kEfitFlagShift_FXMgef)) // FX EffectSetting
     { 
-        if (EffectSetting* mgef = GetFXEffect()) mgef->AddCrossReference(parent);
+        if (EffectSetting* mgef = GetFXEffect()) FormRefCounter::AddReference(parent,mgef);
     }
     if (IsEfitFieldOverridden(kEfitFlagShift_ResistAV)) // Resistance AV
     {
-        if (TESForm* form = TESFileFormats::GetFormFromCode(GetResistAV(),TESFileFormats::kResType_ActorValue)) form->AddCrossReference(parent);
+        if (TESForm* form = TESFileFormats::GetFormFromCode(GetResistAV(),TESFileFormats::kResType_ActorValue)) FormRefCounter::AddReference(parent,form);
     }
-    #endif
 }
 void EffectItem::Unlink()
 {
@@ -570,28 +566,24 @@ void EffectItem::Unlink()
     TESForm* parent = dynamic_cast<TESForm*>(GetParentList());
 
     // effect
-    #ifndef OBLIVION
-    GetEffectSetting()->RemoveCrossReference(parent);
-    #endif
+    FormRefCounter::RemoveReference(parent,GetEffectSetting());
 
     // handler
     if (GetHandler()) GetHandler()->UnlinkHandler();    // links actorValue, ScriptFormID as necessary
 
     // override form refs
-    #ifndef OBLIVION 
     if (IsEfitFieldOverridden(kEfitFlagShift_School)) // School
     { 
         /* TODO - decr school form ref */ 
     }
     if (IsEfitFieldOverridden(kEfitFlagShift_FXMgef)) // FX EffectSetting
     { 
-        if (EffectSetting* mgef = GetFXEffect()) mgef->RemoveCrossReference(parent);
+        if (EffectSetting* mgef = GetFXEffect()) FormRefCounter::RemoveReference(parent,mgef);
     }
     if (IsEfitFieldOverridden(kEfitFlagShift_ResistAV)) // Resistance AV
     {
-        if (TESForm* form = TESFileFormats::GetFormFromCode(GetResistAV(),TESFileFormats::kResType_ActorValue)) form->RemoveCrossReference(parent);
+        if (TESForm* form = TESFileFormats::GetFormFromCode(GetResistAV(),TESFileFormats::kResType_ActorValue)) FormRefCounter::RemoveReference(parent,form);
     }
-    #endif
 }
 void EffectItem::ReplaceMgefCodeRef(UInt32 oldMgefCode, UInt32 newMgefCode)
 {
@@ -627,115 +619,4 @@ void EffectItem::RemoveFormReference(TESForm& form)
     }
 }
 #endif
-
-// methods - construction,destruction
-EffectItem* EffectItem::Create(const EffectSetting& effect) { return new EffectItem(effect); }
-EffectItem* EffectItem::CreateCopy(const EffectItem& source)  { return new EffectItem(source); }
-EffectItem* EffectItem::CreateCopyFromVanilla(::EffectItem* source, bool destroyOriginal)
-{
-    if (!source) return 0;
-    EffectSetting* mgef = EffectSetting::LookupByCode(source->mgefCode); // lookup mgef, in case it has been rebuilt
-    if (!mgef) return 0;
-
-    // construct new item with proper effect
-    EffectItem* item = new EffectItem(*mgef);
-
-    // copy magnitude, area, range, duration
-    item->SetMagnitude(source->GetMagnitude());
-    item->SetArea(source->GetArea());
-    item->SetDuration(source->GetDuration());
-    item->SetRange(source->GetRange());
-
-    // TODO - copy ActorVal
-    // TODO - copy SCIT overrides
-
-    // destroy original effect if requested
-    if (destroyOriginal)
-    {
-        // reproduce original destructor from game/CS code
-        if (source->scriptInfo) delete ((::EffectItem::ScriptEffectInfo*)source->scriptInfo);  // should automatically invoke destructor for name string
-        MemoryHeap::FormHeapFree(source);   // deallocate vanilla effectitem without invoking destructor, since it has been hooked
-    }
-
-    return item;
-}
-void EffectItem::Initialize(const EffectSetting& nEffect)
-{
-    // effect
-    EffectSetting& mgef = const_cast<EffectSetting&>(nEffect);
-    effect = &mgef;
-    mgefCode = nEffect.mgefCode;
-
-    // overrides - none
-    scriptInfo = 0;
-    
-    // basic fields
-    if (!SetRange(Magic::kRange_Self) && !SetRange(Magic::kRange_Touch) && !SetRange(Magic::kRange_Target)) 
-    {
-        _ERROR("No valid range available for EffectItem using %s",nEffect.GetDebugDescEx().c_str());
-    }
-    area = 0;
-    duration = 0;
-    magnitude = 0;
-
-    // cost cache
-    cost = -1;
-
-    // dialog editing fields
-    #ifndef OBLIVION
-    filterMgef = 0;
-    origBaseMagicka = 0;
-    origItemMagicka = 0;
-    origItemMastery = 0;
-    #endif
-    
-    // handler
-    actorValue = 0; // handler may provide alternate initialization
-    SetHandler(EfitHandler::Create(mgef.GetHandler().HandlerCode(),*this));
-    if (GetHandler()) GetHandler()->SetParentItemDefaultFields();
-}
-EffectItem::EffectItem(const EffectSetting& effect) : ::EffectItem(effect) {}
-EffectItem::EffectItem(const EffectItem& source) : ::EffectItem(source) {}
-void EffectItem::Destruct()
-{
-    // EffectItemExtra
-    if (EffectItemExtra* extra = (EffectItemExtra*)scriptInfo)
-    {
-        delete extra;   // destroys name+icon strings and effect handler object
-        scriptInfo = 0;
-    }
-}
-// methods - debugging
-void EffectItem::Dump()
-{
-    BSStringT desc = "[NO PARENT]";
-    if (TESForm* form = dynamic_cast<TESForm*>(GetParentList())) form->GetDebugDescription(desc);
-    _MESSAGE("EffectItem <%p> on %s using %s",this,desc.c_str(),GetEffectSetting()->GetDebugDescEx().c_str());
-    gLog.Indent();
-    _MESSAGE("Magnitude = %i (%i)",GetMagnitude(),magnitude);
-    _MESSAGE("Duration = %i (%i)",GetDuration(),duration);
-    _MESSAGE("Area = %i (%i)",GetArea(),area);
-    _MESSAGE("Range = %i (%i)",GetRange(),range);
-    _MESSAGE("Proj. Range = %i (%i)",GetProjectileRange(), scriptInfo ? ((EffectItemExtra*)scriptInfo)->projectileRange : -1);
-    if (EffectItemExtra* extra = (EffectItemExtra*)scriptInfo)
-    {
-        _MESSAGE("Overrides (Efit Mask = %08X, Mgef Mask = %08X %08X):",extra->efitFlagMask,UInt32(extra->mgefFlagMask >> 32), UInt32(extra->mgefFlagMask));
-        gLog.Indent();
-        _MESSAGE("Name = %s (%s)",GetEffectName().c_str(),extra->name.c_str());
-        _MESSAGE("School = %i (%i)",GetSchool(),extra->school);
-        _MESSAGE("FX Effect = %p (%p)",GetFXEffect() ? GetFXEffect()->mgefCode : 0,extra->fxMgefCode);
-        _MESSAGE("Hostility = %i (h=%i,b=%i)",GetHostility(), extra->hostile, (extra->mgefFlags & (1i64 << EffectSetting::kMgefFlagShift_Beneficial)) >0);
-        _MESSAGE("EfitFlags = %08X",extra->efitFlags);
-        _MESSAGE("MgefFlags = %08X %08X",UInt32(extra->mgefFlags >> 32), UInt32(extra->mgefFlags));
-        _MESSAGE("Base Cost = %f (%f)",GetBaseCost(), extra->baseCost);
-        _MESSAGE("Resistance = %02X (%02X)",GetResistAV(), extra->resistAV);
-        _MESSAGE("Icon = %s (%s)",GetEffectIcon(), extra->iconPath.c_str());
-        gLog.Outdent();
-    }
-    else _MESSAGE("[No Overrides]");
-    _MESSAGE("Handler <%p> = ...",GetHandler());
-    _MESSAGE("Cost (No Caster) = %f",MagickaCost());
-    gLog.Outdent();
-}
-
 }   //  end namespace OBME

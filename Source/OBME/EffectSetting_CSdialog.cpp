@@ -9,6 +9,7 @@
 #include "API/CSDialogs/TESDialog.h"
 #include "API/CSDialogs/DialogExtraData.h"
 #include "API/CSDialogs/DialogConstants.h"
+#include "API/CSDialogs/TESFormSelection.h"
 #include "API/ExtraData/ExtraDataList.h"
 #include "API/Settings/Settings.h"  // projectile names
 
@@ -368,6 +369,28 @@ bool EffectSetting::DialogMessageCallback(HWND dialog, UINT uMsg, WPARAM wParam,
             break;
         }
         break;
+    }
+    case TESDialog::WM_CANDROPSELECTION:
+    {
+        if ((UInt8)wParam == TESForm::kFormType_EffectSetting && (HWND)lParam == GetDlgItem(dialog,IDC_MGEF_COUNTEREFFECTS))
+        {
+            result = true;  return true;    // allow drag & drop of effectsettings into counter effects listview control
+        }
+        break;
+    }
+    case TESDialog::WM_DROPSELECTION:
+    {        
+        ctl = GetDlgItem(dialog,IDC_MGEF_COUNTEREFFECTS);
+        if (!lParam || WindowFromPoint(*(POINT*)lParam) != ctl) break;    // bad drop point
+        if (!TESFormSelection::primarySelection || !TESFormSelection::primarySelection->selections) break;  // bad selection buffer
+        EffectSetting* mgef = dynamic_cast<EffectSetting*>(TESFormSelection::primarySelection->selections->form);
+        if (!mgef) break;   // selection is not an effect setting
+        _VMESSAGE("Add CounterEffect via drop");      
+        TESListView::InsertItem(ctl,mgef); // insert new item
+        ListView_SortItems(ctl,TESFormIDListView::FormListComparator,GetWindowLong(ctl,GWL_USERDATA)); // (re)sort items
+        TESListView::ForceSelectItem(ctl,TESListView::LookupByData(ctl,mgef)); // force select new entry
+        TESFormSelection::primarySelection->ClearSelection(true);   // clear selection buffer
+        return true;
     }
     }
     // invoke handler msg callback

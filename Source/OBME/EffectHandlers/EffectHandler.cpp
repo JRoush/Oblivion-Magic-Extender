@@ -178,7 +178,6 @@ EfitHandler* EfitHandler::Create(UInt32 handlerCode, EffectItem& item)
     if (it != g_handlerMap.end() && it->second._CreateEfitHandler) return it->second._CreateEfitHandler(item);
     return 0; // unrecognized handler
 }
-void EfitHandler::SetParentItemDefaultFields() {}   // default handler does not use actorValue or ScriptFormID
 // serialization
 bool EfitHandler::LoadHandlerChunk(TESFile& file, UInt32 RecordVersion) { return true; } // default handler stores no data in chunk
 void EfitHandler::SaveHandlerChunk() {} // default handler saves no data, and hence saves no chunk at all

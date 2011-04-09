@@ -7,6 +7,9 @@
 #include "OBME/EffectHandlers/EffectHandler.h"
 #include "API/Magic/ActiveEffects.h"
 
+// argument classes
+class   Script;
+
 namespace OBME {
 
 class ScriptEffect;  // OBME version
@@ -43,23 +46,51 @@ public:
 
     // members
     UInt32          scriptFormID;   
-    bool            useSEFFAlwaysApplies;  // magnitude is a percentage of 
-    UInt8           efitAVResType;   // TESFileFormats::ResolutionTypes, for EffectItem::ActorValue field
+    bool            useSEFFAlwaysApplies;  // anded with flag on magic items
+    UInt8           efitAVResType;      // TESFileFormats::ResolutionTypes, for EffectItem::ActorValue field - present for compatibility with v1
     UInt8           customParamResType; // TESFileFormats::ResolutionTypes, for the custom param
-    UInt32          customParam;
+    UInt32          customParam;        // user-specified parameter
 };
 
 class ScriptEfitHandler : public EfitHandler
 {
 public:
-    // constructor, destructor
-    ScriptEfitHandler(EffectItem& item) : EfitHandler(item) {}
-    // creation 
+    // constructor, destructor, creation
+    ScriptEfitHandler(EffectItem& item);
     static EfitHandler*         Make(EffectItem& item) {return new ScriptEfitHandler(item);}  // create instance of this type
+
     // handler code
     virtual UInt32              HandlerCode() const {return EffectHandler::kSEFF;}
 
-    // ... TODO
+    // serialization
+    //virtual bool                LoadHandlerChunk(TESFile& file, UInt32 RecordVersion);
+    //virtual void                SaveHandlerChunk();
+    virtual void                LinkHandler(); 
+    virtual void                UnlinkHandler(); 
+
+    // copy/compare
+    virtual void                CopyFrom(const EfitHandler& copyFrom);
+    virtual bool                CompareTo(const EfitHandler& compareTo);
+    virtual bool                Match(const EfitHandler& compareTo);
+
+    // game/CS specific
+    #ifndef OBLIVION
+    // reference management in CS
+    virtual void                RemoveFormReference(TESForm& form);
+    // child dialog in CS
+    virtual INT                 DialogTemplateID();
+    virtual void                InitializeDialog(HWND dialog);
+    virtual bool                DialogMessageCallback(HWND dialog, UINT uMsg, WPARAM wParam, LPARAM lParam, LRESULT& result);
+    virtual void                SetInDialog(HWND dialog);
+    virtual void                GetFromDialog(HWND dialog);
+    #endif
+
+    // methods
+    Script*         GetScript();    // determine script from effect item & effect setting handlers
+
+    // members
+    UInt8           customParamResType; // TESFileFormats::ResolutionTypes, for the custom param
+    UInt32          customParam;        // additional user-specified parameter
 };
 
 #ifdef OBLIVION

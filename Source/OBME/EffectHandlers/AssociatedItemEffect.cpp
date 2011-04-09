@@ -4,6 +4,7 @@
 
 #include "API/TESFiles/TESFile.h"
 #include "API/CSDialogs/TESDialog.h"
+#include "Components/FormRefCounter.h"
 
 // global method for returning small enumerations as booleans
 inline bool BoolEx(UInt8 value) {return *(bool*)&value;}
@@ -20,17 +21,13 @@ AssociatedItemMgefHandler::AssociatedItemMgefHandler(EffectSetting& effect)
 // serialization
 void AssociatedItemMgefHandler::LinkHandler()
 {
-    #ifndef OBLIVION
     // add a cross ref for the associated form
-    if (TESForm* assocItem = TESForm::LookupByFormID(parentEffect.mgefParam)) assocItem->AddCrossReference(&parentEffect);
-    #endif
+    if (TESForm* assocItem = TESForm::LookupByFormID(parentEffect.mgefParam)) FormRefCounter::AddReference(&parentEffect,assocItem);
 }
 void AssociatedItemMgefHandler::UnlinkHandler()
 {
-    #ifndef OBLIVION
     // remove cross ref for the associated form
-    if (TESForm* assocItem = TESForm::LookupByFormID(parentEffect.mgefParam)) assocItem->RemoveCrossReference(&parentEffect);
-    #endif
+    if (TESForm* assocItem = TESForm::LookupByFormID(parentEffect.mgefParam)) FormRefCounter::RemoveReference(&parentEffect,assocItem);
 }
 // copy/compare
 void AssociatedItemMgefHandler::CopyFrom(const MgefHandler& copyFrom)
@@ -39,10 +36,8 @@ void AssociatedItemMgefHandler::CopyFrom(const MgefHandler& copyFrom)
     if (!src) return; // wrong polymorphic type
 
     // copy mgefParam, manage references
-    #ifndef OBLIVION
-    if (TESForm* form = TESForm::LookupByFormID(parentEffect.mgefParam)) form->RemoveCrossReference(&parentEffect);
-    if (TESForm* form = TESForm::LookupByFormID(src->parentEffect.mgefParam)) form->AddCrossReference(&parentEffect);
-    #endif
+    if (TESForm* form = TESForm::LookupByFormID(parentEffect.mgefParam)) FormRefCounter::RemoveReference(&parentEffect,form);
+    if (TESForm* form = TESForm::LookupByFormID(src->parentEffect.mgefParam)) FormRefCounter::AddReference(&parentEffect,form);
     parentEffect.mgefParam = src->parentEffect.mgefParam;
 }
 bool AssociatedItemMgefHandler::CompareTo(const MgefHandler& compareTo)

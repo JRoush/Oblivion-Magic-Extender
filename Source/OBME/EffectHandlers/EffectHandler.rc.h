@@ -8,6 +8,7 @@
 #define IDD_MGEF_SEFF                   603
 #define IDD_MGEF_DSPL                   604
 #define IDD_EFIT_MDAV                   650
+#define IDD_EFIT_SEFF                   653
 #define IDC_MDAV_ACTORVALUE             6000
 #define IDC_MDAV_AVSOURCE               6001
 #define IDC_MDAV_RECOVERS               6002
@@ -18,10 +19,6 @@
 #define IDC_MDAV_DETRIMENTALLIM0        6007
 #define IDC_MDAV_DETRIMENTALLIM1        6008
 #define IDC_MDAV_AVPART                 6009
-#define IDC_MDAV_OVR_ACTORVALUE         6041
-#define IDC_MDAV_OVR_AVPART             6042
-#define IDC_MDAV_OVR_RAISELOWER         6043
-#define IDC_MDAV_OVR_RECOVERS           6044
 #define IDC_SUMN_ASSOCIATEDITEM         6010
 #define IDC_SUMN_ASSOCIATEDITEMLABEL    6011
 #define IDC_SMBO_USEWEAPON              6012
@@ -53,6 +50,12 @@
 #define IDC_DSPL_ATOMICDISPEL           6038
 #define IDC_DSPL_DISTRIBUTEMAG          6039
 #define IDC_DSPL_USECASTINGCOST         6040
+#define IDC_MDAV_OVR_ACTORVALUE         6041
+#define IDC_MDAV_OVR_AVPART             6042
+#define IDC_MDAV_OVR_RAISELOWER         6043
+#define IDC_MDAV_OVR_RECOVERS           6044
+#define IDC_CHECK1                      6045
+#define IDC_SEFF_OVR_SCRIPT             6045
 
 // Next default values for new objects
 // 
@@ -60,7 +63,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        605
 #define _APS_NEXT_COMMAND_VALUE         40001
-#define _APS_NEXT_CONTROL_VALUE         6045
+#define _APS_NEXT_CONTROL_VALUE         6046
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

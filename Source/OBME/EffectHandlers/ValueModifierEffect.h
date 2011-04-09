@@ -74,7 +74,6 @@ class ValueModifierEfitHandler : public EfitHandler
 public:
     // constructor, initializer
     ValueModifierEfitHandler(EffectItem& item);
-    virtual void                SetParentItemDefaultFields(); // initialize actorVal, script formid on parent effect item & incr refs accordingly
 
     // serialization
     //virtual bool              LoadHandlerChunk(TESFile& file, UInt32 RecordVersion);

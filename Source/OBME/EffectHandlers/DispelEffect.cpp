@@ -7,6 +7,7 @@
 #include "API/CSDialogs/TESDialog.h"
 #include "API/Actors/ActorValues.h"
 #include "Components/TESFileFormats.h"
+#include "Components/FormRefCounter.h"
 
 // global method for returning small enumerations as booleans
 inline bool BoolEx(UInt8 value) {return *(bool*)&value;}
@@ -39,18 +40,14 @@ void DispelMgefHandler::SaveHandlerChunk()
 void DispelMgefHandler::LinkHandler()
 {
     // add cross references
-    #ifndef OBLIVION
-    if (::EffectSetting* mgef = EffectSettingCollection::LookupByCode(mgefCode)) mgef->AddCrossReference(&parentEffect);
-    if (TESForm* form = TESForm::LookupByFormID(magicitemFormID)) form->AddCrossReference(&parentEffect);
-    #endif
+    if (::EffectSetting* mgef = EffectSettingCollection::LookupByCode(mgefCode)) FormRefCounter::AddReference(&parentEffect,mgef);
+    if (TESForm* form = TESForm::LookupByFormID(magicitemFormID)) FormRefCounter::AddReference(&parentEffect,form);
 }
 void DispelMgefHandler::UnlinkHandler() 
 {
     // remove cross references
-    #ifndef OBLIVION
-    if (::EffectSetting* mgef = EffectSettingCollection::LookupByCode(mgefCode)) mgef->RemoveCrossReference(&parentEffect);
-    if (TESForm* form = TESForm::LookupByFormID(magicitemFormID)) form->RemoveCrossReference(&parentEffect);
-    #endif
+    if (::EffectSetting* mgef = EffectSettingCollection::LookupByCode(mgefCode)) FormRefCounter::RemoveReference(&parentEffect,mgef);
+    if (TESForm* form = TESForm::LookupByFormID(magicitemFormID)) FormRefCounter::RemoveReference(&parentEffect,form);
 }
 // copy/compare
 void DispelMgefHandler::CopyFrom(const MgefHandler& copyFrom)
@@ -59,12 +56,10 @@ void DispelMgefHandler::CopyFrom(const MgefHandler& copyFrom)
     if (!src) return; // wrong polymorphic type
 
     // modify references
-    #ifndef OBLIVION
-    if (::EffectSetting* mgef = EffectSettingCollection::LookupByCode(mgefCode)) mgef->RemoveCrossReference(&parentEffect);
-    if (TESForm* form = TESForm::LookupByFormID(magicitemFormID)) form->RemoveCrossReference(&parentEffect);
-    if (::EffectSetting* mgef = EffectSettingCollection::LookupByCode(src->mgefCode)) mgef->AddCrossReference(&parentEffect);
-    if (TESForm* form = TESForm::LookupByFormID(src->magicitemFormID)) form->AddCrossReference(&parentEffect);
-    #endif
+    if (::EffectSetting* mgef = EffectSettingCollection::LookupByCode(mgefCode)) FormRefCounter::RemoveReference(&parentEffect,mgef);
+    if (TESForm* form = TESForm::LookupByFormID(magicitemFormID)) FormRefCounter::RemoveReference(&parentEffect,form);
+    if (::EffectSetting* mgef = EffectSettingCollection::LookupByCode(src->mgefCode)) FormRefCounter::AddReference(&parentEffect,mgef);
+    if (TESForm* form = TESForm::LookupByFormID(src->magicitemFormID)) FormRefCounter::AddReference(&parentEffect,form);
 
     // copy members
     ehCode = src->ehCode;

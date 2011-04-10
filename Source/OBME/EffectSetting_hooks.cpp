@@ -8,6 +8,7 @@
 #include "API/Actors/ActorValues.h"
 #include "Components/TESFileFormats.h"
 #include "Components/EventManager.h"
+#include "Components/FormRefCounter.h"
 #include "Utilities/Memaddr.h"
 
 #pragma warning (disable:4800) // forced typecast of int to bool
@@ -91,6 +92,7 @@ EffectSetting::EffectSetting()
 EffectSetting::~EffectSetting()
 {
     _VMESSAGE("Destructing Mgef <%p>",this);
+    FormRefCounter::ClearReferences(this);  // clear auxiliary ref use info for this effect setting
     if (effectHandler) delete effectHandler;
 }
 

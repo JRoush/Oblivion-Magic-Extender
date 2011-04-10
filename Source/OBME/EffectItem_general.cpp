@@ -65,17 +65,16 @@ bool EffectItem::CompareTo(const EffectItem& compareTo) const
 }
 void EffectItem::CopyFrom(const EffectItem& copyFrom)
 {
-    _VMESSAGE("Copying <%p> using %s to %p",&copyFrom,copyFrom.GetEffectSetting()->GetDebugDescEx().c_str(),this);
-
     // get parent form, for reference counting.  Note that parent ref is explicitly not copied.
     // NOTE - if parent is NULL, Add/Remove FormReference will do nothing
     TESForm* parent = dynamic_cast<TESForm*>(GetParentList());
+    _VMESSAGE("Copying <%p> on {%p} from <%p>",this,parent ? parent->formID : 0,&copyFrom);
 
     // effect (automatically generates correct default handler item)
+    FormRefCounter::RemoveReference(parent,GetEffectSetting());
+    FormRefCounter::AddReference(parent,copyFrom.GetEffectSetting());
     if (GetEffectSetting() != copyFrom.GetEffectSetting())
-    {
-        FormRefCounter::RemoveReference(parent,GetEffectSetting());
-        FormRefCounter::AddReference(parent,copyFrom.GetEffectSetting());
+    {        
         if (GetHandler()) 
         {
             GetHandler()->UnlinkHandler(); // unlink handler to decr form refs

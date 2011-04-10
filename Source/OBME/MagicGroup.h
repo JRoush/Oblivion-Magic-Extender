@@ -100,7 +100,7 @@ public:
     // methods - dialog management
     #ifndef OBLIVION                                               
     _LOCAL void                 InitializeComponentDlg(HWND dialog);
-    _LOCAL static void          GetDispInfo(NMLVDISPINFO* info);
+    _LOCAL static void          GetDispInfo(void* info);    // info is a NMLVDISPINFO*
     _LOCAL static int CALLBACK  CompareListEntries(GroupEntry* entryA, GroupEntry* entryB, int sortparam);
     #endif
 

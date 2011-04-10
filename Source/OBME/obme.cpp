@@ -47,7 +47,6 @@ extern "C" _declspec(dllexport) void* Initialize()
 
 /*--------------------------------------------------------------------------------------------*/
 // submodule loading
-#ifndef MFC
 // Project uses standard windows libraries, define an entry point for the DLL to handle loading/unloading
 BOOL WINAPI DllMain(HANDLE hDllHandle, DWORD dwReason, LPVOID lpreserved)
 {
@@ -63,21 +62,3 @@ BOOL WINAPI DllMain(HANDLE hDllHandle, DWORD dwReason, LPVOID lpreserved)
     }   
     return true;
 }
-#else
-// Project uses MFC, we define here an instance of CWinApp to make this a 'well-formed' DLL
-class CSubmoduleApp : public CWinApp
-{
-public:
-    virtual BOOL InitInstance()
-    {// dll loaded       
-        hModule = m_hInstance;  // store module handle
-        _MESSAGE("Attaching Submodule ..."); 
-        return true;
-    }
-    virtual int ExitInstance() 
-    {// dll unloaded
-       _MESSAGE("Detaching Submodule ...");      
-       return CWinApp::ExitInstance();
-    }
-} gApp;
-#endif

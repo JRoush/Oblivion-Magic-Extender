@@ -10,6 +10,8 @@
 #include "Components/FormRefCounter.h"
 #include "Utilities/Memaddr.h"
 
+#include <commctrl.h>
+
 // local declaration of module handle
 // this handle is needed to extract resources embedded in this module (e.g. dialog templates)
 extern HMODULE hModule;
@@ -21,6 +23,7 @@ namespace OBME {
 MagicGroup::~MagicGroup()
 {
     _VMESSAGE("Destroying '%s'/%p:%p @ <%p>",GetEditorID(),GetFormType(),formID,this);
+    FormRefCounter::ClearReferences(this);  // clear auxiliary ref use info for this effect setting
 }
 bool MagicGroup::LoadForm(TESFile& file)
 {
@@ -435,26 +438,27 @@ void MagicGroupList::GetRevisionUnmatchedComponentFormRefs(BSSimpleList<TESForm*
     // TODO - support properly
     // ATM, though, this is never invoked because it would take an explicit call from the method of the parent form
 }   
-void MagicGroupList::GetDispInfo(NMLVDISPINFO* info)
+void MagicGroupList::GetDispInfo(void* info)
 {
-    if ((info->item.mask & LVIF_TEXT) == 0) return;  // only get display strings
-    GroupEntry* entry = (GroupEntry*)info->item.lParam;
+    NMLVDISPINFO* dispInfo = (NMLVDISPINFO*)info;
+    if ((dispInfo->item.mask & LVIF_TEXT) == 0) return;  // only get display strings
+    GroupEntry* entry = (GroupEntry*)dispInfo->item.lParam;
     if (!entry || !entry->group) 
     {
         // Invalid group entry
-        sprintf_s(info->item.pszText,info->item.cchTextMax,"[ERROR]");
+        sprintf_s(dispInfo->item.pszText,dispInfo->item.cchTextMax,"[ERROR]");
         return;
     }
-    switch (info->item.iSubItem)
+    switch (dispInfo->item.iSubItem)
     {
     case 0: // Weight
-        sprintf_s(info->item.pszText,info->item.cchTextMax,"%i",entry->weight);
+        sprintf_s(dispInfo->item.pszText,dispInfo->item.cchTextMax,"%i",entry->weight);
         break;
     case 1: // Group EditorID
-        sprintf_s(info->item.pszText,info->item.cchTextMax,"%s",entry->group->GetEditorID());
+        sprintf_s(dispInfo->item.pszText,dispInfo->item.cchTextMax,"%s",entry->group->GetEditorID());
         break;
     case 2: // Group FormID
-        sprintf_s(info->item.pszText,info->item.cchTextMax,"%08X",entry->group->formID);
+        sprintf_s(dispInfo->item.pszText,dispInfo->item.cchTextMax,"%08X",entry->group->formID);
         break;
     }
 }

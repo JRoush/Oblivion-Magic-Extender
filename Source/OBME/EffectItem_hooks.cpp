@@ -136,14 +136,7 @@ void EffectItem::Dump()
     gLog.Outdent();
 }
 
-// memory patch addresses - allocation, construction, destruction
-memaddr CreateItemForLoad_Patch                 (0x00415508,0x005674C8);    // for EffectItemList::LoadItem
-memaddr CreateMarksmanDefSpell_Patch            (0x0041D5DB,0x0056FECE);    // creation of builtin marksman paralysis spell
-memaddr CreatePlayerDefSpell_Patch              (0x0041D4EB,0x0056FDDE);    // creation of builtin default player spell
-memaddr CopyEffectItemList_Patch                (0x00414E0C,0x00567413);    // for EffectItemList::CopyFrom
-memaddr CreateNewItem_Patch                     (0x0       ,0x005681B4);    // creation of item for insert & new commands
-memaddr CreateDialogTempCopy_Hook               (0x0       ,0x00566927);    // allocation & construction of temporary working copy for dialog
-memaddr CreateDialogTempCopy_Retn               (0x0       ,0x0056694A);
+// memory patch addresses - construction, destruction
 memaddr Initialize_Hook                         (0x00414790,0x00566A10);    // replace indirect constructor
 memaddr Destruct_Hook                           (0x00413BB0,0x00566690);    // replace destructor
 // memory patch addresses - general methods
@@ -273,17 +266,6 @@ void _declspec(naked) GetScript_Hndl(void)
         retn
     }
 }
-void _declspec(naked) CreateDialogTempCopy_Hndl(void)
-{    
-    _asm
-    {
-        push    ebp
-        call    EffectItem::CreateCopy
-        add     esp,4
-        mov     esi,eax
-        jmp     [CreateDialogTempCopy_Retn._addr]
-    }
-}
 #ifndef OBLIVION
 void _declspec(naked) CleanupDialog_Hndl(void)
 {
@@ -312,15 +294,6 @@ void _declspec(naked) CleanupDialog_Hndl(void)
 void EffectItem::InitHooks()
 {
     _MESSAGE("Initializing ...");
-
-    // patch allocation instances  
-    // NOTE - this does not resize existing effect items on already existing objects; those objects must be rebuilt elsewhere
-    CreateItemForLoad_Patch.WriteData8(sizeof(EffectItem));
-    CreateMarksmanDefSpell_Patch.WriteData8(sizeof(EffectItem));
-    CreatePlayerDefSpell_Patch.WriteData8(sizeof(EffectItem));
-    CopyEffectItemList_Patch.WriteData8(sizeof(EffectItem));
-    CreateNewItem_Patch.WriteData8(sizeof(EffectItem));
-    CreateDialogTempCopy_Hook.WriteRelJump(&CreateDialogTempCopy_Hndl);  
 
     // hook construction & destruction methods
     Initialize_Hook.WriteRelJump(memaddr::GetPointerToMember(&Initialize));

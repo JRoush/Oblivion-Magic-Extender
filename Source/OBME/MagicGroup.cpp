@@ -339,8 +339,7 @@ void MagicGroup::Initialize()
     #ifndef OBLIVION
 
     // insert new item into CS main menu
-    HMENU menu = GetMenu(TESDialog::csHandle); // get main CS menu handle
-    menu = GetSubMenu(menu,5);              // get 'Gameplay' submenu handle
+    HMENU menu = GetSubMenu(TESDialog::csMainMenuHandle,5);   // get 'Gameplay' submenu handle
     MENUITEMINFO iteminfo;      
     iteminfo.cbSize = sizeof(iteminfo);        
     iteminfo.fMask = MIIM_ID | MIIM_FTYPE | MIIM_STRING;

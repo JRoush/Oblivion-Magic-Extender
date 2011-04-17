@@ -114,7 +114,6 @@ EffectSetting* EffectSettingCollection_Add_Hndl(UInt32 mgefCode, const char* nam
     mgef->mgefCode = mgefCode;
     EffectSettingCollection::collection.SetAt(mgefCode,mgef);  // add new effect to table
     // mark effect as unlinked, so that Link() may be called after datahandler creation to update reference counts
-    // NOTE: this requires that all member initialization be in 'unlinked' values, e.g. formids instead of pointers
     mgef->formFlags &= ~TESForm::kFormFlags_Linked;
     // set editor name
     char namebuffer[5];
@@ -140,6 +139,8 @@ EffectSetting* EffectSettingCollection_Add_Hndl(UInt32 mgefCode, const char* nam
     if (defGroup) mgef->AddMagicGroup((MagicGroup*)defGroup,defWeight);
     // default handler
     mgef->SetHandler(MgefHandler::Create(EffectSetting::GetDefaultHandlerCode(mgefCode),*mgef));
+    // check if default mgefs have already been linked
+    if (EffectSetting::defaultVFXEffect) mgef->LinkForm();  // if defaults are already linked, link this as well
     // done
     _DMESSAGE("Added to Collection: %s w/ host %i, handler '%s'", mgef->GetDebugDescEx().c_str(), mgef->GetHostility(),mgef->GetHandler().HandlerName());
     return mgef;
@@ -287,6 +288,14 @@ void LinkDefaultEffects()
     EffectSetting::diseaseVFXEffect     = (EffectSetting*)EffectSettingCollection::LookupByCode(Swap32('DISE'));
     EffectSetting::poisonVFXEffect      = (EffectSetting*)EffectSettingCollection::LookupByCode(Swap32('POSN'));
 }
+void ClearDefaultEffects()
+{
+    _DMESSAGE("Clearing default magic effects ...");
+    // clear pointers to meta effects
+    EffectSetting::defaultVFXEffect     = 0;
+    EffectSetting::diseaseVFXEffect     = 0;
+    EffectSetting::poisonVFXEffect      = 0;
+}
 void EffectSetting::Initialize()
 {
     _MESSAGE("Initializing ...");
@@ -308,8 +317,9 @@ void EffectSetting::Initialize()
     TESDataHandler_AddForm_LookupPatch.WriteData8((TESDataHandler_AddForm_JumpPatch - TESDataHandler_AddForm_JumpTable)/4);
     TESDataHandler_AddForm_JumpPatch.WriteData32((UInt32)&TESDataHandler_AddForm_JumpHndl);
 
-    // hook creation of vanilla magic effects, so we can cache them
+    // hook creation & clearing of vanilla magic effects, so we can managed cached pointers to them
     EventManager::RegisterEventCallback(EventManager::DataHandler_PostCreateDefaults,LinkDefaultEffects);
+    EventManager::RegisterEventCallback(EventManager::DataHandler_Clear,ClearDefaultEffects);
 
     // TODO - hook loading of player's known effect list to resolve effect codes
 

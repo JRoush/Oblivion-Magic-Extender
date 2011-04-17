@@ -119,9 +119,6 @@ public:
     _LOCAL /*---/134*/ virtual int          CompareInFormList(const TESForm& compareTo, int compareBy);
     #endif
 
-    // methods: debugging
-    _LOCAL BSStringT        GetDebugDescEx() const;
-
     // methods: serialization
     _LOCAL void             UnlinkForm();   // reeverse of LinkForm() - converts all pointers to formIDs/codes/etc and decr all CS cross references
 
@@ -162,8 +159,9 @@ public:
     _LOCAL void                     InitializeDialog(HWND dialog);
     #endif
 
-    // methods: hooks
+    // methods: hooks & debugging
     _LOCAL static void              Initialize();
+    _LOCAL BSStringT                GetDebugDescEx() const;
 
     // constructor
     _LOCAL EffectSetting();

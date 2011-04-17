@@ -145,7 +145,7 @@ public:
     // construction, destruction
     _LOCAL static EffectItem*   Create(const EffectSetting& effect);
     _LOCAL static EffectItem*   CreateCopy(const EffectItem& source);
-    _LOCAL static EffectItem*   CreateCopyFromVanilla(::EffectItem* source, bool destroyOriginal); // for replacing existing ::EffectItems
+    _LOCAL static EffectItem*   CreateUnlinkedCopyFromVanilla(::EffectItem* source, bool destroyOriginal); // for replacing existing ::EffectItems
     _LOCAL void                 Initialize(const EffectSetting& effect);
     _LOCAL                      EffectItem(const EffectSetting& effect);
     _LOCAL                      EffectItem(const EffectItem& source);

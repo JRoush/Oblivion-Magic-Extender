@@ -15,7 +15,7 @@ namespace OBME {
 // methods - construction,destruction
 EffectItem* EffectItem::Create(const EffectSetting& effect) { return new EffectItem(effect); }
 EffectItem* EffectItem::CreateCopy(const EffectItem& source)  { return new EffectItem(source); }
-EffectItem* EffectItem::CreateCopyFromVanilla(::EffectItem* source, bool destroyOriginal)
+EffectItem* EffectItem::CreateUnlinkedCopyFromVanilla(::EffectItem* source, bool destroyOriginal)
 {
     if (!source) return 0;
     EffectSetting* mgef = EffectSetting::LookupByCode(source->mgefCode); // lookup mgef, in case it has been rebuilt
@@ -30,10 +30,22 @@ EffectItem* EffectItem::CreateCopyFromVanilla(::EffectItem* source, bool destroy
     item->SetDuration(source->GetDuration());
     item->SetRange(source->GetRange());
 
-    // TODO - copy ActorVal
-    // TODO - copy SCIT overrides
+    // copy ActorVal
+    item->actorValue = source->actorValue;
+
+    // copy SCIT overrides (this item scriptInfo* will already be initialized if necessary by constructor)
+    if (source->scriptInfo && source->mgefCode == Swap32('SEFF'))
+    {
+        item->SetEfitFieldOverride(EffectItem::kEfitFlagShift_ScriptFormID,true);  
+        item->scriptInfo->scriptFormID = source->scriptInfo->scriptFormID;
+        item->SetEffectName(source->scriptInfo->name.c_str());
+        item->SetSchool(source->scriptInfo->school);
+        item->SetFXEffect(source->scriptInfo->fxMgefCode);
+        item->SetHostility(source->scriptInfo->hostile ? Magic::kHostility_Hostile : Magic::kHostility_Neutral);
+    }
 
     // destroy original effect if requested
+    // There is no other way to destroy a vanilla EffectItem, since the vanilla destructor is patched by OBME.
     if (destroyOriginal)
     {
         // reproduce original destructor from game/CS code
@@ -41,6 +53,8 @@ EffectItem* EffectItem::CreateCopyFromVanilla(::EffectItem* source, bool destroy
         MemoryHeap::FormHeapFree(source);   // deallocate vanilla effectitem without invoking destructor, since it has been hooked
     }
 
+    // unlink item - this function is only used for processing builtin forms created in an unlinked state.
+    item->Unlink();
     return item;
 }
 void EffectItem::Initialize(const EffectSetting& nEffect)

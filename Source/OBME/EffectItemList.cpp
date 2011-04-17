@@ -55,6 +55,17 @@ void EffectItemList::CopyEffectsFrom(const EffectItemList& copyFrom)
     }
 }
 
+void EffectItemList::CreateUnlinkedCopyFromVanilla(::EffectItemList* source, bool clearList)
+{
+    if (!source) return;
+    for (Node* node = &source->firstNode; node && node->data; node = node->next)
+    {
+        EffectItem* item = EffectItem::CreateUnlinkedCopyFromVanilla(node->data,clearList);    // construct an unlinked OBME::EffectItem copy 
+        AddEffect(item);    // append new item to this list
+    }
+    if (clearList) source->Clear(); // clear now-empty source effect list
+}
+
 // memory patch addresses
 memaddr RemoveEffect_Hook                   (0x00414BC0,0x00566F50);
 memaddr AddEffect_Hook                      (0x00414B90,0x00566F20);

@@ -27,6 +27,7 @@ public:
 
     // methods - other effect lists
     _LOCAL void                 CopyEffectsFrom(const EffectItemList& copyFrom);    // allows ref incr/decr in CS
+    _LOCAL void                 CreateUnlinkedCopyFromVanilla(::EffectItemList* source, bool clearList); // for copying existing vanilla lists
 
     // methods - aggregate properties
     //_LOCAL bool                 HasEffect(UInt32 mgefCode, UInt32 avCode); // use ValueModifierEfitHandler flags to regulate avCode check

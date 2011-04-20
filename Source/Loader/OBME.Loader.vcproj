@@ -51,7 +51,7 @@
 				WarningLevel="3"
 				Detect64BitPortabilityProblems="true"
 				DebugInformationFormat="4"
-				ForcedIncludeFiles="Prefix.h; obse_common\obse_version.h;"
+				ForcedIncludeFiles="Prefix.h; obse_common\obse_version.h; map;"
 			/>
 			<Tool
 				Name="VCManagedResourceCompilerTool"
@@ -130,7 +130,7 @@
 				WarningLevel="3"
 				Detect64BitPortabilityProblems="true"
 				DebugInformationFormat="3"
-				ForcedIncludeFiles="Prefix.h; obse_common\obse_version.h;"
+				ForcedIncludeFiles="Prefix.h; obse_common\obse_version.h; map;"
 			/>
 			<Tool
 				Name="VCManagedResourceCompilerTool"

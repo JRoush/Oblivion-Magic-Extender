@@ -123,6 +123,26 @@ BEGIN
 END
 #endif    // APSTUDIO_INVOKED
 
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Menu
+//
+
+IDR_EILS_POPUPMENU MENU 
+BEGIN
+    POPUP "NEW / EDIT / DELETE Popup"
+    BEGIN
+        MENUITEM "New",                         IDM_EILS_NEW
+        MENUITEM "Edit",                        IDM_EILS_EDIT
+        MENUITEM "Delete",                      IDM_EILS_DELETE
+        MENUITEM "Duplicate",                   IDM_EILS_DUPLICATE
+        MENUITEM SEPARATOR
+        MENUITEM "Move Up",                     IDM_EILS_MOVEUP
+        MENUITEM "Move Down",                   IDM_EILS_MOVEDOWN
+    END
+END
+
 #endif    // English (U.S.) resources
 /////////////////////////////////////////////////////////////////////////////
 

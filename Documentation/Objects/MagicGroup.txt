@@ -3,6 +3,7 @@ Magic Group:
 +   Subgroup types: 
     +   None / single subgroup
     +   By Object Form
+    +   By Object Form and Caster
     +   By Object Name
 +   Value (per subgroup) = Aggregate function over all active objects in subgroup { Weight - possibly determined dynamically by object, e.g. to return magnitude }
 +   Aggregate Functions: Must use a known function, in order to predict new values without actually modifying active effect lists
@@ -51,7 +52,7 @@ Groups are also processed when a magic item is prepared for casting
 Game Mechanics Superceded:
 ==========================
 +   Single instance stacking for spells
-    +   Subgroup = By Object Form
+    +   Subgroup = By Object Form (and Caster?)
     +   Weight = 1 for each member spell
     +   Aggregate = Sum
     +   Condition = Value - 1

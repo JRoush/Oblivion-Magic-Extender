@@ -433,6 +433,14 @@
 				>
 			</File>
 			<File
+				RelativePath=".\MagicItemEx.rc"
+				>
+			</File>
+			<File
+				RelativePath=".\MagicItemEx.rc.h"
+				>
+			</File>
+			<File
 				RelativePath=".\MagicItemForm.cpp"
 				>
 			</File>
@@ -526,11 +534,23 @@
 			</File>
 		</Filter>
 		<File
+			RelativePath=".\CSDialogUtilities.cpp"
+			>
+		</File>
+		<File
+			RelativePath=".\CSDialogUtilities.h"
+			>
+		</File>
+		<File
 			RelativePath=".\CSE_Interface.h"
 			>
 		</File>
 		<File
 			RelativePath=".\Magic.h"
+			>
+		</File>
+		<File
+			RelativePath=".\Notes_LinkageAndCSRefs.txt"
 			>
 		</File>
 	</Files>

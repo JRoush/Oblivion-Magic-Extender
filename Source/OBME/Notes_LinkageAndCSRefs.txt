@@ -1,0 +1,30 @@
+All methods should treate forms as implicitly linked, and should not attempt to manage CS cross references.
+Special cases:
+    -   Link() & Unlink(): these excplicitly set the linkage state and manage refs.
+    -   CopyFrom(): explicitly manages refs; assumes linkage is valid
+    -   Destructor (Forms only): clear refs, for consistency with vanilla behavior
+The constructor & destructor are *not* exceptions.  Objects should be constructed fully linked, but not cross ref'd.
+
+Object lifecycle:
+------------------
+
+-   DataHandler Initialized:
+    -   All refs cleared
+    -   Creation of builtin objects, in order of precedence
+    -   Unlink + Link builtin objects, to correct refs
+
+-   Objects loaded from disk:
+    -   Unlink (clear refs/links for builtin objects)
+    -   Loading from disk, unlinked
+    -   Link
+    
+-   Objects created:
+    -   New form constructed
+    -   Unlink + Link form, to correct refs
+    -   Add form to data handler
+    
+-   Objects edited in dialog (CS only):
+    -   Temp copy created
+    -   Temp copy altered - refs not managed
+    -   Base object copied from temp
+    -   Temp destroyed

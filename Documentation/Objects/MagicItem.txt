@@ -89,10 +89,7 @@ providing different default values.
     +   XP Gain: per use.  single use of primary school skill, for SPL & PSN.  single use of secondary Alchemy skill for INGR.
         (RSH): add XP gain multiplier and two skill use indices (one for cast, one for hit), for all magic items.  use invalid indices for magic items that normally don't grant XP
         (RSH): Add a flag for use of progressively diminishing XP if item used repeatedly
-        
-    +   Silence: Prevents casting of SPL,PSN,GPW,LPW
-        +   FLAG: ImmuneToSilence, SPEL only, but only SPEL is subject to silence in the first place
-    
+            
     +   IsAbleToUse Callback(RSH): returns true/false if spell may be used.  overrides all other CanUse tests
         For some types of magic (e.g. diseases, abilities, bound ench) the target is available as a parameter
             
@@ -105,6 +102,9 @@ providing different default values.
  
 +   Casting,Use:
     +   FLAG: Edible (ALCH, INGR only)
+    
+    +   Silence: Prevents casting of SPL,PSN,GPW,LPW
+        +   FLAG: ImmuneToSilence, SPEL only, but only SPEL is subject to silence in the first place
     
     +   Casting Animation: determined by school for SPL,GPW,LPW.  statically determined for WEP,SCR,STF,ALCH,ENCH
         (RSH): allow spell to override casting animation for SPL,GPW,LPW.  Possibly STF,SCR as well.

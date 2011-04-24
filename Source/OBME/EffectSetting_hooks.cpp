@@ -43,8 +43,7 @@ memaddr TESDataHandler_AddForm_JumpPatch        (0x0       ,0x00481D58); // entr
 
 // constructor, destructor
 EffectSetting::EffectSetting()
-: ::EffectSetting(), MagicGroupList(), effectHandler(0), mgefObmeFlags(0),
- costCallback(0), dispelFactor(1.0)
+: ::EffectSetting(), MagicGroupList(), effectHandler(0), mgefObmeFlags(0), costCallback(0), dispelFactor(1.0)
 {    
     _VMESSAGE("Constructing Mgef <%p>",this);    
 

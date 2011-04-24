@@ -120,7 +120,7 @@ public:
     #endif
 
     // methods: serialization
-    _LOCAL void             UnlinkForm();   // reeverse of LinkForm() - converts all pointers to formIDs/codes/etc and decr all CS cross references
+    _LOCAL void             UnlinkForm();   // reverse of LinkForm() - converts all pointers to formIDs/codes/etc and decr all CS cross references
 
     // methods: conversion
     _LOCAL static UInt8     GetDefaultHostility(UInt32 mgefCode);  // returns vanilla hostility for vanilla effect codes, neutral for new effects

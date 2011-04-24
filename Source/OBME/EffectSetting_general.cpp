@@ -1031,7 +1031,7 @@ void EffectSetting::UnlinkForm()
         costCallback = (Script*)((TESForm*)costCallback)->formID;
     }
 
-    // set linked flag
+    // clear linked flag
     formFlags &= ~kFormFlags_Linked;
 }
 // conversion
@@ -1483,6 +1483,8 @@ void EffectSetting::ReplaceMgefCodeRef(UInt32 oldMgefCode, UInt32 newMgefCode)
     {
         if (counterArray[i] == oldMgefCode) counterArray[i] = newMgefCode;
     }
+    // handler
+    GetHandler().ReplaceMgefCodeRef(oldMgefCode,newMgefCode);
 }
 // effect handler
 MgefHandler& EffectSetting::GetHandler()

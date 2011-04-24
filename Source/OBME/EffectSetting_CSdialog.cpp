@@ -3,6 +3,7 @@
 #include "OBME/MagicGroup.rc.h"
 #include "OBME/Magic.h" // hostility constants
 #include "OBME/EffectHandlers/EffectHandler.h"
+#include "OBME/CSDialogUtilities.h"
 
 #include "API/TES/TESDataHandler.h"
 #include "API/Actors/ActorValues.h" // AV codes
@@ -15,7 +16,7 @@
 
 #pragma warning (disable:4800) // forced typecast of int to bool
 
-// local declaration of module handle.
+// local declaration of module handle from obme.cpp
 extern HMODULE hModule;
 
 namespace OBME {
@@ -25,8 +26,6 @@ namespace OBME {
 static const UInt32 kTabCount = 5;
 static const UInt32 kTabTemplateID[kTabCount] = {IDD_MGEF_GENERAL,IDD_MGEF_DYNAMICS,IDD_MGLS,IDD_MGEF_FX,IDD_MGEF_HANDLER};
 static const char* kTabLabels[kTabCount] = {"General","Dynamics","Groups","FX","Handler"};
-static const char* kNoneEntry = " NONE ";
-static const UInt32 WM_USERCOMMAND =  WM_APP + 0x55; // send in lieu of WM_COMMAND to avoid problems with TESFormIDListVIew::DlgProc 
 
 // global method for returning small enumerations as booleans
 inline bool BoolEx(UInt8 value) {return *(bool*)&value;}

@@ -97,7 +97,7 @@ class MgefHandler : public EffectHandler
 public:
     // constructor, destructor
     MgefHandler(EffectSetting& effect) : parentEffect(effect) {}  // initialize fields based on parent object.  
-                                        // NOTE: When initializing members, check 'Linked' flag of parent and initialize accordingly.
+                                        // NOTE: Members initialized as linked, but refs not managed.  Do not initialize mgefParam.
     virtual ~MgefHandler() {} 
 
     // creation 
@@ -112,10 +112,12 @@ public:
     // copy/compare
     virtual void                CopyFrom(const MgefHandler& copyFrom);  // must incr/decr CrossRefs for mgefParam if necessary
     virtual bool                CompareTo(const MgefHandler& compareTo); // returns false if equivalent
+    
+    // reference management
+    virtual void                RemoveFormReference(TESForm& form); // removes ref to given form.  must handle mgefParam if necessary
+    virtual void                ReplaceMgefCodeRef(UInt32 oldMgefCode, UInt32 newMgefCode); // replace all uses of old code with new code
 
     #ifndef OBLIVION
-    // reference management in CS
-    virtual void                RemoveFormReference(TESForm& form); // removes ref to given form.  must handle mgefParam if necessary
     // child Dialog in CS
     virtual INT                 DialogTemplateID(); // ID of dialog template resource 
     virtual void                InitializeDialog(HWND dialog);
@@ -146,7 +148,7 @@ class EfitHandler : public EffectHandler
 public:
     // constructor, destructor
     EfitHandler(EffectItem& item) : parentItem(item) {}  // initialize fields based on parent object.  
-                                    // NOTE: When initializing members, check 'Linked' flag of parent and initialize accordingly.
+                                        // NOTE: Members initialized as linked, but refs not managed.  Do not initialize actorVal/scriptFormID.
     virtual ~EfitHandler() {}
 
     // creation
@@ -165,13 +167,15 @@ public:
 
     // calculated properties
     virtual float               GetCostFactor(Actor* caster); // get multiplicative factor to effect item magicka cost
+    
+    // reference management
+    virtual void                RemoveFormReference(TESForm& form); // removes ref to given form.  must handle actorValue/scriptFormID if necessary
+    virtual void                ReplaceMgefCodeRef(UInt32 oldMgefCode, UInt32 newMgefCode); // replace all uses of old code with new code
 
     // game/CS specific
     #ifdef OBLIVION
     // TODO: menu interaction methods, similar to the dialog interaction methods
     #else
-    // reference management in CS
-    virtual void                RemoveFormReference(TESForm& form); // removes ref to given form.  must handle actorValue/scriptFormID if necessary
     // child dialog in CS
     virtual INT                 DialogTemplateID(); // ID of dialog template resource 
     virtual void                InitializeDialog(HWND dialog);

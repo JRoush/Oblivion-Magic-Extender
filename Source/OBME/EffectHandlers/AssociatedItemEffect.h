@@ -20,12 +20,15 @@ public:
     // serialization
     virtual void                LinkHandler();
     virtual void                UnlinkHandler();
+
     // copy/compare
     virtual void                CopyFrom(const MgefHandler& copyFrom);
     virtual bool                CompareTo(const MgefHandler& compareTo);
-    #ifndef OBLIVION
-    // reference management in CS
+
+    // reference management
     virtual void                RemoveFormReference(TESForm& form);
+
+    #ifndef OBLIVION
     // child Dialog in CS
     virtual INT                 DialogTemplateID();
     virtual void                InitializeDialog(HWND dialog) = 0;

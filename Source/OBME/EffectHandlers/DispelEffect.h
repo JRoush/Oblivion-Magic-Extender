@@ -27,12 +27,16 @@ public:
     virtual void                SaveHandlerChunk();
     virtual void                LinkHandler();
     virtual void                UnlinkHandler();
+
     // copy/compare
     virtual void                CopyFrom(const MgefHandler& copyFrom);
     virtual bool                CompareTo(const MgefHandler& compareTo);
-    #ifndef OBLIVION
-    // reference management in CS
+
+    // reference management
     virtual void                RemoveFormReference(TESForm& form);
+    virtual void                ReplaceMgefCodeRef(UInt32 oldMgefCode, UInt32 newMgefCode);
+
+    #ifndef OBLIVION
     // child Dialog in CS
     virtual INT                 DialogTemplateID();
     virtual void                InitializeDialog(HWND dialog);

@@ -16,13 +16,16 @@ class BoundItemMgefHandler : public AssociatedItemMgefHandler
 public:
     // constructor
     BoundItemMgefHandler(EffectSetting& effect);
+
     // creation 
     static MgefHandler*         Make(EffectSetting& effect) {return new BoundItemMgefHandler(effect);}  // create instance of this type
+
     // handler code
     virtual UInt32              HandlerCode() const {return EffectHandler::kSMBO;}
 
     // serialization
     virtual void                LinkHandler();  // overriden to allow correction of flag values
+
     #ifndef OBLIVION    
     // child Dialog for CS editing
     virtual INT                 DialogTemplateID();
@@ -40,8 +43,10 @@ class BoundItemEfitHandler : public AssociatedItemEfitHandler
 public:
     // constructor, destructor
     BoundItemEfitHandler(EffectItem& item) : AssociatedItemEfitHandler(item) {}
+
     // creation 
     static EfitHandler*         Make(EffectItem& item) {return new BoundItemEfitHandler(item);}  // create instance of this type
+
     // handler code
     virtual UInt32              HandlerCode() const {return EffectHandler::kSMBO;}
 

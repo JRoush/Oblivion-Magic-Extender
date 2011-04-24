@@ -159,9 +159,10 @@ bool MgefHandler::CompareTo(const MgefHandler& compareTo)
     // default handler has no other fields to compare
     return false;
 }
-#ifndef OBLIVION
-// reference management in CS
+// reference management
 void MgefHandler::RemoveFormReference(TESForm& form) {} // default handler has no form references
+void MgefHandler::ReplaceMgefCodeRef(UInt32 oldMgefCode, UInt32 newMgefCode) {}
+#ifndef OBLIVION
 // child Dialog in CS
 INT MgefHandler::DialogTemplateID() { return 0; }   // default handler has no dialog
 void MgefHandler::InitializeDialog(HWND dialog) {}
@@ -197,9 +198,10 @@ bool EfitHandler::Match(const EfitHandler& compareTo)
 }
 // calculated properties
 float EfitHandler::GetCostFactor(Actor* caster) { return 1.0; } // default handler has no effect on cost
-#ifndef OBLIVION
-// reference management in CS
+// reference management
 void EfitHandler::RemoveFormReference(TESForm& form) {} // default handler has no form references
+void EfitHandler::ReplaceMgefCodeRef(UInt32 oldMgefCode, UInt32 newMgefCode) {}
+#ifndef OBLIVION
 // child Dialog in CS
 INT EfitHandler::DialogTemplateID() { return 0; }   // default handler has no dialog
 void EfitHandler::InitializeDialog(HWND dialog) {}

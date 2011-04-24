@@ -2,6 +2,7 @@
 #include "OBME/EffectHandlers/EffectHandler.rc.h"
 #include "OBME/EffectSetting.h"
 #include "OBME/Magic.h"
+#include "OBME/CSDialogUtilities.h"
 
 #include "API/TESFiles/TESFile.h"
 #include "API/CSDialogs/TESDialog.h"
@@ -11,9 +12,6 @@
 
 // global method for returning small enumerations as booleans
 inline bool BoolEx(UInt8 value) {return *(bool*)&value;}
-// send in lieu of WM_COMMAND to avoid problems with TESFormIDListView::DlgProc 
-static const UInt32 WM_USERCOMMAND =  WM_APP + 0x55; 
-static const char* kNoneEntry = " NONE ";
 
 namespace OBME {
 
@@ -92,13 +90,17 @@ bool DispelMgefHandler::CompareTo(const MgefHandler& compareTo)
     // handlers are identical
     return false;
 }
-#ifndef OBLIVION
-// reference management in CS
+// reference management
 void DispelMgefHandler::RemoveFormReference(TESForm& form) 
 {
     if (&form == (TESForm*)EffectSettingCollection::LookupByCode(mgefCode)) mgefCode = 0;
     if (form.formID == magicitemFormID) magicitemFormID = 0;
 }
+void DispelMgefHandler::ReplaceMgefCodeRef(UInt32 oldMgefCode, UInt32 newMgefCode)
+{
+    if (mgefCode == oldMgefCode) mgefCode = newMgefCode;
+}
+#ifndef OBLIVION
 // child Dialog in CS
 INT DispelMgefHandler::DialogTemplateID() { return IDD_MGEF_DSPL; }
 void DispelMgefHandler::InitializeDialog(HWND dialog)

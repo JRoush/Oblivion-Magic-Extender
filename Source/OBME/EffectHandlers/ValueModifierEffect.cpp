@@ -2,6 +2,7 @@
 #include "OBME/EffectHandlers/EffectHandler.rc.h"
 #include "OBME/EffectSetting.h"
 #include "OBME/EffectItem.h"
+#include "OBME/CSDialogUtilities.h"
 
 #include "API/TESFiles/TESFile.h"
 #include "API/CSDialogs/TESDialog.h"
@@ -11,8 +12,6 @@
 
 // global method for returning small enumerations as booleans
 inline bool BoolEx(UInt8 value) {return *(bool*)&value;}
-// send in lieu of WM_COMMAND to avoid problems with TESFormIDListView::DlgProc 
-static const UInt32 WM_USERCOMMAND =  WM_APP + 0x55; 
 
 namespace OBME {
 
@@ -78,14 +77,14 @@ bool ValueModifierMgefHandler::CompareTo(const MgefHandler& compareTo)
     // handlers are identical
     return false;
 }
-#ifndef OBLIVION
-// reference management in CS
+// reference management
 void ValueModifierMgefHandler::RemoveFormReference(TESForm& form) 
 {
     // clear mgefParam if it references AV token form
     if (&form == TESFileFormats::GetFormFromCode(parentEffect.mgefParam,TESFileFormats::kResType_ActorValue)) 
         parentEffect.mgefParam = ActorValues::kActorVal__UBOUND;
 }
+#ifndef OBLIVION
 // child Dialog in CS
 INT ValueModifierMgefHandler::DialogTemplateID() { return IDD_MGEF_MDAV; }
 void ValueModifierMgefHandler::InitializeDialog(HWND dialog)
@@ -240,7 +239,7 @@ void ValueModifierEfitHandler::LinkHandler()
     // add cross reference for actorValue
     if (overrideFlags & kOverride_ActorValue)
     {
-        TESForm* parentForm = dynamic_cast<TESForm*>(parentItem.GetParentList());
+        TESForm* parentForm = parentItem.GetParentForm();
         TESForm* form = TESFileFormats::GetFormFromCode(parentItem.actorValue,TESFileFormats::kResType_ActorValue);
         if (parentForm && form) FormRefCounter::AddReference(parentForm,form);
     }
@@ -250,7 +249,7 @@ void ValueModifierEfitHandler::UnlinkHandler()
     // remove cross reference for actorValue
     if (overrideFlags & kOverride_ActorValue)
     {
-        TESForm* parentForm = dynamic_cast<TESForm*>(parentItem.GetParentList());
+        TESForm* parentForm = parentItem.GetParentForm();
         TESForm* form = TESFileFormats::GetFormFromCode(parentItem.actorValue,TESFileFormats::kResType_ActorValue);
         if (parentForm && form) FormRefCounter::RemoveReference(parentForm,form);
     }
@@ -262,7 +261,7 @@ void ValueModifierEfitHandler::CopyFrom(const EfitHandler& copyFrom)
     if (!src) return; // wrong polymorphic type
 
     // actorValue
-    TESForm* parentForm = dynamic_cast<TESForm*>(parentItem.GetParentList());
+    TESForm* parentForm = parentItem.GetParentForm();
     if (overrideFlags & kOverride_ActorValue)
     {        
         TESForm* form = TESFileFormats::GetFormFromCode(parentItem.actorValue,TESFileFormats::kResType_ActorValue);
@@ -310,9 +309,7 @@ bool ValueModifierEfitHandler::Match(const EfitHandler& compareTo)
     // return true if doesn't override AV, or if avs are identical
     return (~overrideFlags & kOverride_ActorValue) || (parentItem.actorValue == src->parentItem.actorValue);
 }
-// game/CS specific
-#ifndef OBLIVION
-// reference management in CS
+// reference management
 void ValueModifierEfitHandler::RemoveFormReference(TESForm& form)
 {
     // clear actorValue if it is in use and it references AV token form
@@ -322,6 +319,8 @@ void ValueModifierEfitHandler::RemoveFormReference(TESForm& form)
             overrideFlags &= ~kOverride_ActorValue; // clear av override
     }    
 }
+// game/CS specific
+#ifndef OBLIVION
 // child dialog in CS
 INT ValueModifierEfitHandler::DialogTemplateID() { return IDD_EFIT_MDAV; }
 void ValueModifierEfitHandler::InitializeDialog(HWND dialog)

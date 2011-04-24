@@ -1,6 +1,7 @@
 #include "OBME/EffectHandlers/AssociatedItemEffect.h"
 #include "OBME/EffectHandlers/EffectHandler.rc.h"
 #include "OBME/EffectSetting.h"
+#include "OBME/CSDialogUtilities.h"
 
 #include "API/TESFiles/TESFile.h"
 #include "API/CSDialogs/TESDialog.h"
@@ -8,9 +9,6 @@
 
 // global method for returning small enumerations as booleans
 inline bool BoolEx(UInt8 value) {return *(bool*)&value;}
-// send in lieu of WM_COMMAND to avoid problems with TESFormIDListView::DlgProc 
-static const UInt32 WM_USERCOMMAND =  WM_APP + 0x55; 
-static const char* kNoneEntry = " NONE ";
 
 namespace OBME {
 
@@ -58,13 +56,13 @@ bool AssociatedItemMgefHandler::CompareTo(const MgefHandler& compareTo)
     // handlers are identical
     return BoolEx(kCompareSuccess);
 }
-#ifndef OBLIVION
-// reference management in CS
+// reference management
 void AssociatedItemMgefHandler::RemoveFormReference(TESForm& form) 
 {
     // clear mgefParam if it matches formID of ref
     if (parentEffect.mgefParam == form.formID) parentEffect.mgefParam = 0;
 }
+#ifndef OBLIVION
 // child Dialog in CS
 INT AssociatedItemMgefHandler::DialogTemplateID() { return IDD_MGEF_SUMN; }
 void AssociatedItemMgefHandler::SetInDialog(HWND dialog)

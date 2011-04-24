@@ -3,6 +3,7 @@
 #include "OBME/EffectSetting.h"
 #include "OBME/EffectItem.h"
 #include "OBME/Magic.h"
+#include "OBME/CSDialogUtilities.h"
 
 #include "API/TESFiles/TESFile.h"
 #include "API/CSDialogs/TESDialog.h"
@@ -12,8 +13,6 @@
 
 // global method for returning small enumerations as booleans
 inline bool BoolEx(UInt8 value) {return *(bool*)&value;}
-// send in lieu of WM_COMMAND to avoid problems with TESFormIDListView::DlgProc 
-static const UInt32 WM_USERCOMMAND =  WM_APP + 0x55; 
 
 namespace OBME {
 
@@ -85,8 +84,7 @@ bool ScriptMgefHandler::CompareTo(const MgefHandler& compareTo)
     // handlers are identical
     return false;
 }
-#ifndef OBLIVION
-// reference management in CS
+// reference management
 void ScriptMgefHandler::RemoveFormReference(TESForm& form) 
 {
     if (form.formID == scriptFormID) scriptFormID = 0;
@@ -95,6 +93,11 @@ void ScriptMgefHandler::RemoveFormReference(TESForm& form)
         customParam = (customParamResType == TESFileFormats::kResType_ActorValue) ? ActorValues::kActorVal__UBOUND : 0;
     }
 }
+void ScriptMgefHandler::ReplaceMgefCodeRef(UInt32 oldMgefCode, UInt32 newMgefCode)
+{
+    if (customParamResType == TESFileFormats::kResType_MgefCode && customParam == oldMgefCode) customParam = newMgefCode;
+}
+#ifndef OBLIVION
 // child Dialog in CS
 INT ScriptMgefHandler::DialogTemplateID() { return IDD_MGEF_SEFF; }
 void ScriptMgefHandler::InitializeDialog(HWND dialog)
@@ -171,7 +174,7 @@ ScriptEfitHandler::ScriptEfitHandler(EffectItem& item)
 void ScriptEfitHandler::LinkHandler()
 {
     // incr ref for script fomid override
-    TESForm* parentForm = dynamic_cast<TESForm*>(parentItem.GetParentList());
+    TESForm* parentForm = parentItem.GetParentForm();
     if (parentItem.IsEfitFieldOverridden(EffectItem::kEfitFlagShift_ScriptFormID))
     {
         if (TESForm* form = TESForm::LookupByFormID(parentItem.scriptInfo->scriptFormID)) FormRefCounter::AddReference(parentForm,form);
@@ -183,7 +186,7 @@ void ScriptEfitHandler::LinkHandler()
 void ScriptEfitHandler::UnlinkHandler()
 {
     // decr ref for script fomid override
-    TESForm* parentForm = dynamic_cast<TESForm*>(parentItem.GetParentList());
+    TESForm* parentForm = parentItem.GetParentForm();
     if (parentItem.IsEfitFieldOverridden(EffectItem::kEfitFlagShift_ScriptFormID))
     {
         if (TESForm* form = TESForm::LookupByFormID(parentItem.scriptInfo->scriptFormID)) FormRefCounter::RemoveReference(parentForm,form);
@@ -199,7 +202,7 @@ void ScriptEfitHandler::CopyFrom(const EfitHandler& copyFrom)
     if (!src) return; // wrong polymorphic type
 
     // reference incr/decr
-    TESForm* parentForm = dynamic_cast<TESForm*>(parentItem.GetParentList());
+    TESForm* parentForm = parentItem.GetParentForm();
     // script fomid override
     if (parentItem.IsEfitFieldOverridden(EffectItem::kEfitFlagShift_ScriptFormID))
     {
@@ -248,9 +251,7 @@ bool ScriptEfitHandler::Match(const EfitHandler& compareTo)
 {
     return true;    // TODO - use GMST to optionally compare script formIDs
 }
-// game/CS specific
-#ifndef OBLIVION
-// reference management in CS
+// reference management
 void ScriptEfitHandler::RemoveFormReference(TESForm& form)
 {
     if (parentItem.IsEfitFieldOverridden(EffectItem::kEfitFlagShift_ScriptFormID) && form.formID == parentItem.scriptInfo->scriptFormID)
@@ -261,6 +262,12 @@ void ScriptEfitHandler::RemoveFormReference(TESForm& form)
         customParam = (customParamResType == TESFileFormats::kResType_ActorValue) ? ActorValues::kActorVal__UBOUND : 0;
     }
 }
+void ScriptEfitHandler::ReplaceMgefCodeRef(UInt32 oldMgefCode, UInt32 newMgefCode)
+{
+    if (customParamResType == TESFileFormats::kResType_MgefCode && customParam == oldMgefCode) customParam = newMgefCode;
+}
+// game/CS specific
+#ifndef OBLIVION
 // child dialog in CS
 INT ScriptEfitHandler::DialogTemplateID() { return IDD_EFIT_SEFF; }
 void ScriptEfitHandler::InitializeDialog(HWND dialog)

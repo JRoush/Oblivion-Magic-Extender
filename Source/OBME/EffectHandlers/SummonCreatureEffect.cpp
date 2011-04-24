@@ -1,15 +1,13 @@
 #include "OBME/EffectHandlers/SummonCreatureEffect.h"
 #include "OBME/EffectHandlers/EffectHandler.rc.h"
 #include "OBME/EffectSetting.h"
+#include "OBME/CSDialogUtilities.h"
 
 #include "API/TESFiles/TESFile.h"
 #include "API/CSDialogs/TESDialog.h"
 
 // global method for returning small enumerations as booleans
 inline bool BoolEx(UInt8 value) {return *(bool*)&value;}
-// send in lieu of WM_COMMAND to avoid problems with TESFormIDListView::DlgProc 
-static const UInt32 WM_USERCOMMAND =  WM_APP + 0x55; 
-static const char* kNoneEntry = " NONE ";
 
 namespace OBME {
 

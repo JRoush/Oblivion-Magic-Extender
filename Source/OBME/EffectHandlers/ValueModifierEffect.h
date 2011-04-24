@@ -28,9 +28,10 @@ public:
     virtual void                CopyFrom(const MgefHandler& copyFrom);
     virtual bool                CompareTo(const MgefHandler& compareTo);
 
-    #ifndef OBLIVION
-    // reference management in CS
+    // reference management
     virtual void                RemoveFormReference(TESForm& form);
+
+    #ifndef OBLIVION
     // child Dialog in CS
     virtual INT                 DialogTemplateID();
     virtual void                InitializeDialog(HWND dialog);
@@ -86,12 +87,13 @@ public:
     virtual bool                CompareTo(const EfitHandler& compareTo); // returns false if equivalent
     virtual bool                Match(const EfitHandler& compareTo); // returns true if they match for purposes of alchemy
 
+    // reference management
+    virtual void                RemoveFormReference(TESForm& form);
+
     // game/CS specific
     #ifdef OBLIVION
     // TODO: menu interaction methods, similar to the dialog interaction methods
     #else
-    // reference management in CS
-    virtual void                RemoveFormReference(TESForm& form);
     // child dialog in CS
     virtual INT                 DialogTemplateID();
     virtual void                InitializeDialog(HWND dialog);

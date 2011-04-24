@@ -16,9 +16,9 @@ public:
     enum MagicHostility
     {   
         kHostility__NONE            = 0x0,
-        kHostility_Neutral          = 1 << 0,
-        kHostility_Hostile          = 1 << 1,
-        kHostility_Beneficial       = 1 << 2,
+        kHostility_Neutral          = 0x1,
+        kHostility_Hostile          = 0x2,
+        kHostility_Beneficial       = 0x4,
     };
 
 };

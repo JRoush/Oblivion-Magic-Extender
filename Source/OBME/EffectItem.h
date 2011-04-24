@@ -18,6 +18,7 @@ namespace OBME {
 class   EfitHandler;
 class   EffectSetting;
 class   EfitHandler;
+class   EffectItemList;
 
 class EffectItem : public ::EffectItem
 {
@@ -55,7 +56,7 @@ public:
         MEMBER /*++/++*/ BSStringT          iconPath; // overrides effectsetting icon
 
         // members - nonoverride fields
-        MEMBER /*++/++*/ ::EffectItemList*  parentList; // pointer to parent effect item list
+        MEMBER /*++/++*/ EffectItemList*    parentList; // pointer to parent effect item list
         MEMBER /*++/++*/ EfitHandler*       effectHandler;  // handler object
         MEMBER /*++/++*/ SInt32             projectileRange;  // projectile range
 
@@ -75,8 +76,9 @@ public:
     // methods - non-override parameters
     INLINE EffectSetting*       GetEffectSetting() const {return (OBME::EffectSetting*)effect;} // for convenience
     _LOCAL void                 SetEffectSetting(const EffectSetting& mgef);
-    _LOCAL ::EffectItemList*    GetParentList() const;
-    _LOCAL void                 SetParentList(::EffectItemList* list);
+    _LOCAL EffectItemList*      GetParentList() const;
+    _LOCAL void                 SetParentList(EffectItemList* list);
+    _LOCAL TESForm*             GetParentForm() const;
     _LOCAL EfitHandler*         GetHandler() const;
     _LOCAL void                 SetHandler(EfitHandler* handler);
     _LOCAL SInt32               GetProjectileRange() const;             // returns -1 if effect cannot or does not have projectile range
@@ -121,12 +123,11 @@ public:
     // methods - serialization & reference management
     //_LOCAL bool                 Load(TESFile& file, const char* parentEditorID);
     //_LOCAL void                 Save(); 
+    //_LOCAL bool                 RequiresObmeMgefChunks(); // returns true if obme-specific chunks are required to serialize this effect
     _LOCAL void                 Link(); // converts type codes into pointers where needed, and increments ref counts in CS
     _LOCAL void                 Unlink(); // converts pointers to typecodes where needed, and decrements ref counts in CS
     _LOCAL void                 ReplaceMgefCodeRef(UInt32 oldMgefCode, UInt32 newMgefCode); // replace all uses of old code with new code
-    #ifndef OBLIVION
     _LOCAL void                 RemoveFormReference(TESForm& form);
-    #endif
 
     // methods - dialog interface, reference management for CS
     #ifndef OBLIVION   
@@ -145,7 +146,7 @@ public:
     // construction, destruction
     _LOCAL static EffectItem*   Create(const EffectSetting& effect);
     _LOCAL static EffectItem*   CreateCopy(const EffectItem& source);
-    _LOCAL static EffectItem*   CreateUnlinkedCopyFromVanilla(::EffectItem* source, bool destroyOriginal); // for replacing existing ::EffectItems
+    _LOCAL static EffectItem*   CreateFromVanilla(::EffectItem* source, bool destroyOriginal); // for replacing existing ::EffectItems
     _LOCAL void                 Initialize(const EffectSetting& effect);
     _LOCAL                      EffectItem(const EffectSetting& effect);
     _LOCAL                      EffectItem(const EffectItem& source);

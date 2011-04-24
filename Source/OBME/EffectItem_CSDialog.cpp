@@ -3,6 +3,7 @@
 #include "OBME/EffectSetting.h"
 #include "OBME/EffectHandlers/EffectHandler.h"
 #include "OBME/Magic.h"
+#include "OBME/CSDialogUtilities.h"
 
 #include "API/Actors/ActorValues.h"
 #include "API/CSDialogs/TESDialog.h"
@@ -11,33 +12,11 @@
 #include "API/ExtraData/BSExtraData.h"
 #include "API/ExtraData/ExtraDataList.h"
 
-static const char* kNoneEntry = " NONE ";
-static const UInt32 WM_USERCOMMAND =  WM_APP + 0x55; // send in lieu of WM_COMMAND to when defering control setup from SetInDialog to DialogCallback
-
-// local declaration of module handle.
+// local declaration of module handle from obme.cpp
 extern HMODULE hModule;
 
 namespace OBME {
 #ifndef OBLIVION
-
-// extra TESIcon class for icon override manipulation
-class IMPORTCLASS DialogExtraIcon : public BSExtraData, public TESIcon
-{
-public:
-
-    static const UInt8 kDialogExtra_Icon = 0xF0;     
-
-     // BSExtraData virtual method overrides:
-    INLINE /*00/00*/ virtual        ~DialogExtraIcon() {}  // default destructor will invoke BSExtraData, TESIcon destructors
-
-    // no additional virtual methods
-
-    // constructor
-    INLINE DialogExtraIcon() : BSExtraData(), TESIcon() {extraType = kDialogExtra_Icon;}
-
-    // use FormHeap for class new/delete
-    USEFORMHEAP
-};
 
 // methods - dialog interface for CS
 void EffectItem::BuildSchoolList(HWND comboList)

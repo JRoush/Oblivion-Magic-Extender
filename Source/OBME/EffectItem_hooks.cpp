@@ -15,7 +15,7 @@ namespace OBME {
 // methods - construction,destruction
 EffectItem* EffectItem::Create(const EffectSetting& effect) { return new EffectItem(effect); }
 EffectItem* EffectItem::CreateCopy(const EffectItem& source)  { return new EffectItem(source); }
-EffectItem* EffectItem::CreateUnlinkedCopyFromVanilla(::EffectItem* source, bool destroyOriginal)
+EffectItem* EffectItem::CreateFromVanilla(::EffectItem* source, bool destroyOriginal)
 {
     if (!source) return 0;
     EffectSetting* mgef = EffectSetting::LookupByCode(source->mgefCode); // lookup mgef, in case it has been rebuilt
@@ -53,8 +53,7 @@ EffectItem* EffectItem::CreateUnlinkedCopyFromVanilla(::EffectItem* source, bool
         MemoryHeap::FormHeapFree(source);   // deallocate vanilla effectitem without invoking destructor, since it has been hooked
     }
 
-    // unlink item - this function is only used for processing builtin forms created in an unlinked state.
-    item->Unlink();
+    // done
     return item;
 }
 void EffectItem::Initialize(const EffectSetting& nEffect)
@@ -120,9 +119,7 @@ void EffectItem::Destruct()
 // methods - debugging
 void EffectItem::Dump()
 {
-    BSStringT desc = "[NO PARENT]";
-    if (TESForm* form = dynamic_cast<TESForm*>(GetParentList())) form->GetDebugDescription(desc);
-    _MESSAGE("EffectItem <%p> on %s using %s",this,desc.c_str(),GetEffectSetting()->GetDebugDescEx().c_str());
+    _MESSAGE("EffectItem <%p> using {%08X} %s",this,mgefCode,GetEffectSetting()->GetDebugDescEx().c_str());
     gLog.Indent();
     _MESSAGE("Magnitude = %i (%i)",GetMagnitude(),magnitude);
     _MESSAGE("Duration = %i (%i)",GetDuration(),duration);

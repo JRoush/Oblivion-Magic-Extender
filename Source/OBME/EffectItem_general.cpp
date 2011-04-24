@@ -1,6 +1,7 @@
 #include "OBME/EffectItem.h"
 #include "OBME/EffectSetting.h"
 #include "OBME/EffectHandlers/EffectHandler.h"
+#include "OBME/EffectItemList.h"
 #include "OBME/Magic.h"
 
 #include "API/Actors/ActorValues.h"
@@ -187,12 +188,12 @@ void EffectItem::SetEffectSetting(const EffectSetting& nEffect)
     // handler - efithandler
     SetHandler(EfitHandler::Create(mgef.GetHandler().HandlerCode(),*this));
 }
-::EffectItemList* EffectItem::GetParentList() const
+EffectItemList* EffectItem::GetParentList() const
 {
     if (EffectItemExtra* extra = (EffectItemExtra*)scriptInfo) return extra->parentList;
     else return 0;
 }
-void EffectItem::SetParentList(::EffectItemList* list)
+void EffectItem::SetParentList(EffectItemList* list)
 {
     EffectItemExtra* extra = (EffectItemExtra*)scriptInfo;
     if (list)
@@ -211,6 +212,12 @@ void EffectItem::SetParentList(::EffectItemList* list)
             scriptInfo = 0;
         }
     }
+}
+TESForm* EffectItem::GetParentForm() const
+{
+    EffectItemList* list = GetParentList();
+    if (list) return list->GetParentForm();
+    else return 0;
 }
 EfitHandler* EffectItem::GetHandler() const
 {
@@ -589,13 +596,15 @@ void EffectItem::ReplaceMgefCodeRef(UInt32 oldMgefCode, UInt32 newMgefCode)
     // effect
     if (mgefCode == oldMgefCode) mgefCode = newMgefCode;
 
+    // handler
+    if (GetHandler()) GetHandler()->ReplaceMgefCodeRef(oldMgefCode,newMgefCode);
+
     // override form refs
     if (IsEfitFieldOverridden(kEfitFlagShift_FXMgef)) // FX EffectSetting
     { 
         if (GetFXEffect() && GetFXEffect()->mgefCode == oldMgefCode) SetFXEffect(newMgefCode);
     }
 }
-#ifndef OBLIVION
 void EffectItem::RemoveFormReference(TESForm& form)
 {
     // NOTE - can't remove main EffectSetting, this must be done in the corresponding EffectItemList method
@@ -617,5 +626,5 @@ void EffectItem::RemoveFormReference(TESForm& form)
         if (&form == TESFileFormats::GetFormFromCode(GetResistAV(),TESFileFormats::kResType_ActorValue)) SetEfitFieldOverride(kEfitFlagShift_ResistAV,false);
     }
 }
-#endif
+
 }   //  end namespace OBME

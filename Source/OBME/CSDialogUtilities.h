@@ -20,9 +20,6 @@ static const char* kNoneEntry = " NONE ";
 // templated comparison function, for listview comparsions
 template <class DataT> int StandardCompare(DataT a, DataT b) { if (a<b) return -1; else if (a>b) return 1; else return 0; }
 
-// popup menu replacer - loads popup menu from OBME instead of CS executable if possible
-HMENU LoadPopupMenu(HWND dialog, INT menuTemplateID);
-
 // extra TESIcon class for icon override manipulation
 class DialogExtraIcon : public BSExtraData, public TESIcon
 {
@@ -38,6 +35,35 @@ public:
     _LOCAL DialogExtraIcon() : BSExtraData(), TESIcon() {extraType = kDialogExtra_Icon;}
 
     // use FormHeap for class new/delete
+    USEFORMHEAP
+};
+
+// extra TabCollection class for managing tab subwindows
+class TabCollection
+{
+public:
+
+    // methods
+    void        ClearTabs();
+    int         InsertTab(HINSTANCE instance, INT dlgTemplate, const char* tabName, int index = -1);
+    int         SetActiveTab(int index);   // returns prev active tab
+    bool        HandleTabControlMessage(HWND dialog, UINT uMsg, WPARAM wParam, LPARAM lParam, LRESULT& result);
+
+    // methods - static creation & cleanup
+    static TabCollection*   GetTabCollection(HWND dialog, HWND tabControl);
+    static void             DestroyTabCollection(HWND tabControl);
+
+protected:
+    
+    // protected members
+    HWND          parentDialog;
+    HWND          parentControl;
+
+    // constructor, destructor
+    TabCollection(HWND dialog, HWND tabControl);
+    ~TabCollection();
+
+    // use form heap
     USEFORMHEAP
 };
 

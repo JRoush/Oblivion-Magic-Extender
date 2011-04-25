@@ -19,6 +19,9 @@
 // local declaration of module handle from obme.cpp
 extern HMODULE hModule;
 
+// global method for returning small enumerations as booleans
+inline bool BoolEx(UInt8 value) {return *(bool*)&value;}
+
 namespace OBME {
 #ifndef OBLIVION
 
@@ -26,10 +29,14 @@ namespace OBME {
 static const UInt32 kTabCount = 5;
 static const UInt32 kTabTemplateID[kTabCount] = {IDD_MGEF_GENERAL,IDD_MGEF_DYNAMICS,IDD_MGLS,IDD_MGEF_FX,IDD_MGEF_HANDLER};
 static const char* kTabLabels[kTabCount] = {"General","Dynamics","Groups","FX","Handler"};
-
-// global method for returning small enumerations as booleans
-inline bool BoolEx(UInt8 value) {return *(bool*)&value;}
-
+static enum MgefTabs
+{
+    kMgefTab_General = 0,
+    kMgefTab_Dynamics,
+    kMgefTab_Groups,
+    kMgefTab_FX,
+    kMgefTab_Handler,
+};
 // Helper functions
 bool ExtraDataList_RemoveData(BaseExtraList* list, BSExtraData* data, bool destroy = true)
 {
@@ -54,72 +61,7 @@ bool ExtraDataList_RemoveData(BaseExtraList* list, BSExtraData* data, bool destr
     if (destroy) delete data;  // destroy extra data object
     return found;
 }
-TESDialog::Subwindow* InsertTabSubwindow(HWND dialog, HWND tabs, INT index)
-{
-    _DMESSAGE("Inserting tab %i '%s' w/ template ID %08X in tabctrl %08X of dialog %08X",index,kTabLabels[index],kTabTemplateID[index],tabs,dialog);
-    // insert tab into tabs control
-    TESTabControl::InsertItem(tabs,index,kTabLabels[index],(void*)index);
-    // create a subwindow object for the tab
-    TESDialog::Subwindow* subwindow = new TESDialog::Subwindow;
-    // set subwindow position relative to parent dialog
-    subwindow->hDialog = dialog;
-    subwindow->hInstance = (HINSTANCE)hModule;
-    subwindow->hContainer = tabs;
-    RECT rect;
-    GetWindowRect(tabs,&rect);
-    TabCtrl_AdjustRect(tabs,false,&rect);
-    subwindow->position.x = rect.left;
-    subwindow->position.y = rect.top;
-    ScreenToClient(dialog,&subwindow->position); 
-    // build subwindow control list (copy controls from tab dialog template into parent dialog)
-    TESDialog::BuildSubwindow(kTabTemplateID[index],subwindow);
-    // add subwindow extra data to parent
-    TESDialog::AddDialogExtraSubwindow(dialog,kTabTemplateID[index],subwindow);
-    // hide tab controls
-    for (BSSimpleList<HWND>::Node* node = &subwindow->controls.firstNode; node && node->data; node = node->next)
-    {
-        ShowWindow(node->data, false);
-    }
-    return subwindow;
-}
-void ShowTabSubwindow(HWND dialog, INT index, bool show)
-{
-    _DMESSAGE("Showing (%i) Tab %i '%s'",show,index,kTabLabels[index]);
-    // fetch subwindow for tab    
-    TESDialog::Subwindow* subwindow = 0;
-    if (subwindow = TESDialog::GetSubwindow(dialog,kTabTemplateID[index]))
-    {
-        _DMESSAGE("Showing subwindow <%p>",subwindow);
-        // show controls
-        if (subwindow->hSubwindow) 
-        {
-            // subwindow is instantiated as an actual subwindow
-            ShowWindow(subwindow->hSubwindow, show);
-        }  
-        for (BSSimpleList<HWND>::Node* node = &subwindow->controls.firstNode; node && node->data; node = node->next)
-        {
-            // iteratre through controls & show
-            ShowWindow(node->data, show);
-        }
-    }
-    // handler subwindow
-    DialogExtraSubwindow* extraSubwindow = (DialogExtraSubwindow*)GetWindowLong(GetDlgItem(dialog,IDC_MGEF_HANDLER),GWL_USERDATA);
-    if (kTabTemplateID[index] == IDD_MGEF_HANDLER && extraSubwindow && extraSubwindow->subwindow)
-    {
-        _DMESSAGE("Showing handler subwindow <%p>",extraSubwindow->subwindow);
-        // this is the effect handler tab, show/hide handler subwindow as well
-        if (extraSubwindow->subwindow->hSubwindow) 
-        {
-            // subwindow is instantiated as an actual subwindow
-            ShowWindow(extraSubwindow->subwindow->hSubwindow, show);
-        }  
-        for (BSSimpleList<HWND>::Node* node = &extraSubwindow->subwindow->controls.firstNode; node && node->data; node = node->next)
-        {
-            // iteratre through controls & show
-            ShowWindow(node->data, show);
-        }
-    }
-}
+
 // Dialog functions
 void EffectSetting::InitializeDialog(HWND dialog)
 {
@@ -127,11 +69,15 @@ void EffectSetting::InitializeDialog(HWND dialog)
     HWND ctl;
 
     // build tabs
-    ctl = GetDlgItem(dialog,IDC_MGEF_TABS);
-    for (UInt32 i = 0; i < kTabCount; i++) InsertTabSubwindow(dialog,ctl,i);
-    // select first tab
-    TabCtrl_SetCurSel(ctl,0);
-    ShowTabSubwindow(dialog,0,true);
+    if (TabCollection* tc = TabCollection::GetTabCollection(dialog,GetDlgItem(dialog,IDC_MGEF_TABS)))
+    {
+        tc->InsertTab(hModule,IDD_MGEF_GENERAL,"General",kMgefTab_General);
+        tc->InsertTab(hModule,IDD_MGEF_DYNAMICS,"Dynamics",kMgefTab_Dynamics);
+        tc->InsertTab(hModule,IDD_MGLS,"Groups",kMgefTab_Groups);
+        tc->InsertTab(hModule,IDD_MGEF_FX,"FX",kMgefTab_FX);
+        tc->InsertTab(hModule,IDD_MGEF_HANDLER,"Handler",kMgefTab_Handler);
+        tc->SetActiveTab(kMgefTab_General);
+    }
 
     // GENERAL
     {
@@ -351,19 +297,18 @@ bool EffectSetting::DialogMessageCallback(HWND dialog, UINT uMsg, WPARAM wParam,
         switch (nmhdr->idFrom)  // switch on control id
         {
         case IDC_MGEF_TABS: // main tab control
-            if (nmhdr->code == TCN_SELCHANGING)
+            if ((nmhdr->code == TCN_SELCHANGING || nmhdr->code == TCN_SELCHANGE) && TabCtrl_GetCurSel(nmhdr->hwndFrom) == kMgefTab_Handler)
             {
-                // current tab is about to be unselected
-                _VMESSAGE("Tab hidden");
-                ShowTabSubwindow(dialog,TabCtrl_GetCurSel(nmhdr->hwndFrom),false);
+                // hide/show handler subwindow controls
+                DialogExtraSubwindow* extraSubwindow = (DialogExtraSubwindow*)GetWindowLong(GetDlgItem(dialog,IDC_MGEF_HANDLER),GWL_USERDATA);
+                if (extraSubwindow && extraSubwindow->subwindow)
+                {  
+                    for (BSSimpleList<HWND>::Node* node = &extraSubwindow->subwindow->controls.firstNode; node && node->data; node = node->next)
+                    {
+                        ShowWindow(node->data, nmhdr->code == TCN_SELCHANGE);
+                    }
+                }                
                 result = 0; return true;   // retval = false to allow change
-            }
-            else if (nmhdr->code == TCN_SELCHANGE)
-            {
-                // current tab was just selected
-                _VMESSAGE("Tab Shown");
-                ShowTabSubwindow(dialog,TabCtrl_GetCurSel(nmhdr->hwndFrom),true);  
-                return true;  // no retval
             }
             break;
         }
@@ -391,6 +336,12 @@ bool EffectSetting::DialogMessageCallback(HWND dialog, UINT uMsg, WPARAM wParam,
         TESFormSelection::primarySelection->ClearSelection(true);   // clear selection buffer
         return true;
     }
+    }
+
+    // tab control handler
+    if (TabCollection* tc = TabCollection::GetTabCollection(dialog,GetDlgItem(dialog,IDC_MGEF_TABS)))
+    {
+        if (tc->HandleTabControlMessage(dialog,uMsg,wParam,lParam,result)) return true;
     }
     // invoke handler msg callback
     if (GetHandler().DialogMessageCallback(dialog,uMsg,wParam,lParam,result)) return true;
@@ -583,6 +534,7 @@ void EffectSetting::GetFromDialog(HWND dialog)
 void EffectSetting::CleanupDialog(HWND dialog)
 {
     _DMESSAGE("Cleanup MGEF Dialog");
+    TabCollection::DestroyTabCollection(GetDlgItem(dialog,IDC_MGEF_TABS));
     GetHandler().CleanupDialog(dialog);
     ::EffectSetting::CleanupDialog(dialog);
     MagicGroupList::ComponentDlgCleanup(dialog);

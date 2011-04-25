@@ -12,6 +12,10 @@
 #include "API/CSDialogs/TESFormSelection.h"
 
 #include "Utilities/Memaddr.h"
+#include "Components/EventManager.h"
+
+// local declaration of module handle from obme.cpp
+extern HMODULE hModule;
 
 namespace OBME {
 
@@ -631,6 +635,14 @@ memaddr MagicItem_DlgProc_Patch             (0x0       ,0x0056D8F2); // call to 
 memaddr TESSigilStone_DlgProc_Patch         (0x0       ,0x0051DD75); // call to ::EffectItemList::EffectListDlgMsgCallback
 
 // hooks & debugging
+HMENU LoadMenuHndl(HINSTANCE hInstance, LPCSTR lpMenuName)
+{
+    if (hInstance == TESDialog::csInstance && lpMenuName == MAKEINTRESOURCE(IDR_EILS_POPUPMENU))
+    {
+        return LoadMenu(hModule,lpMenuName);    // load OBME version of EffectItemList popup
+    }
+    else return 0;
+}
 void EffectItemList::InitHooks()
 {
     _MESSAGE("Initializing ...");
@@ -644,9 +656,8 @@ void EffectItemList::InitHooks()
     GetEffectDisplayInfo_Hook.WriteRelJump(memaddr::GetPointerToMember(&GetEffectDisplayInfo));
     EffectItemComparator_Hook.WriteRelJump(memaddr::GetPointerToMember(&EffectItemComparator));
 
-    // patch loading of popup menus
-    MagicItem_LoadPopup_Patch.WriteRelCall(&OBME::LoadPopupMenu);
-    TESSigilStone_LoadPopup_Patch.WriteRelCall(&OBME::LoadPopupMenu);
+    // hook loading of popup menu
+    EventManager::RegisterEventCallback(EventManager::CS_LoadMenuA,&LoadMenuHndl);
 
     // patch calls to EffectListDlgMsgCallback
     MagicItem_DlgProc_Patch.WriteRelCall(memaddr::GetPointerToMember(&EffectListDlgMsgCallback));

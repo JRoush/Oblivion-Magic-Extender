@@ -3,6 +3,9 @@
 #include "API/CSDialogs/TESDialog.h"
 #include "API/CSDialogs/DialogExtraData.h"
 #include "API/ExtraData/ExtraDataList.h"
+#include "API/TES/MemoryHeap.h"
+
+#include "Utilities/Memaddr.h"
 
 #include <CommCtrl.h>
 
@@ -11,34 +14,107 @@ extern HMODULE hModule;
 
 namespace OBME {
 
-/************************* Popup Menu Replacer **********************************/
-HMENU LoadPopupMenu(HWND dialog, INT menuTemplateID)
+/************************* Tab Collection **********************************/
+TabCollection::TabCollection(HWND dialog, HWND tabControl) : parentDialog(dialog), parentControl(tabControl) {}
+TabCollection::~TabCollection() { ClearTabs(); }
+TabCollection* TabCollection::GetTabCollection(HWND dialog, HWND tabControl)
 {
-    HMENU menu = LoadMenu(hModule,MAKEINTRESOURCE(menuTemplateID));
-    if (!menu) menu = LoadMenu(TESDialog::csInstance,MAKEINTRESOURCE(menuTemplateID));  // load from CS executable if not found in OBME
-    if (!menu) return 0;
-    HMENU submenu = GetSubMenu(menu,0);
-    if (!submenu) return 0;
-
-    DialogExtraPopupMenu* popupExtra = TESDialog::GetDialogExtraPopupMenu(dialog,menuTemplateID);
-    if (!popupExtra)
-    {        
-        BaseExtraList* list = TESDialog::GetDialogExtraList(dialog);
-        if (!list) return 0;
-        // create new popup extra entry
-        popupExtra = new DialogExtraPopupMenu;
-        popupExtra->menu = menu;
-        popupExtra->popupMenu = submenu;
-        popupExtra->menuTemplateID = menuTemplateID;
-        popupExtra->dialogItemID = 0;
-        // push entry onto front of list
-        popupExtra->extraNext = list->extraList;
-        list->extraList = popupExtra;   
+    TabCollection* tc = (TabCollection*)GetWindowLong(tabControl,GWL_USERDATA);
+    if (!tc)
+    {
+        tc = new TabCollection(dialog,tabControl);
+        SetWindowLong(tabControl,GWL_USERDATA,(LONG)tc);
     }
-    
-    return submenu; // return popup menu handle
+    return tc;
 }
-
+void TabCollection::DestroyTabCollection(HWND tabControl)
+{
+    TabCollection* tc = (TabCollection*)GetWindowLong(tabControl,GWL_USERDATA);
+    if (tc) delete tc;
+}
+void TabCollection::ClearTabs()
+{
+    TCITEM item;
+    item.mask = TCIF_PARAM;
+    item.lParam = 0;
+    while (TabCtrl_GetItem(parentControl,0,&item))
+    {
+        if (item.lParam) delete (TESDialog::Subwindow*)item.lParam; // destroy subwindow
+        TabCtrl_DeleteItem(parentControl,0);
+    }
+}
+int TabCollection::InsertTab(HINSTANCE instance, INT dlgTemplate, const char* tabName, int index)
+{
+    
+    // initialize subwindow
+    TESDialog::Subwindow* subwindow = new TESDialog::Subwindow;
+    subwindow->hDialog = parentDialog;
+    subwindow->hContainer = parentControl;
+    subwindow->hInstance = instance;
+    // add tab to control    
+    index = TESTabControl::InsertItem(parentControl,index,tabName,subwindow);
+    if (index >= 0)
+    {
+        // set default subwindow position
+        RECT rect;
+        GetWindowRect(parentControl,&rect);
+        TabCtrl_AdjustRect(parentControl,false,&rect);
+        subwindow->position.x = rect.left;
+        subwindow->position.y = rect.top;
+        ScreenToClient(parentDialog,&subwindow->position); 
+        // build subwindow
+        TESDialog::BuildSubwindow(dlgTemplate,subwindow);        
+        for (BSSimpleList<HWND>::Node* node = &subwindow->controls.firstNode; node && node->data; node = node->next)
+        {
+            ShowWindow(node->data, false);  // hide controls
+        }
+    }
+    else delete subwindow;  // delete subwindow on failure
+    return index;
+}
+int TabCollection::SetActiveTab(int index)
+{
+    int curSel = TESTabControl::GetCurSel(parentControl);
+    if (TESDialog::Subwindow* subwindow = (TESDialog::Subwindow*)TESTabControl::GetCurSelData(parentControl))
+    {
+        for (BSSimpleList<HWND>::Node* node = &subwindow->controls.firstNode; node && node->data; node = node->next)
+        {
+            ShowWindow(node->data, false);  // hide controls
+        } 
+    }
+    TabCtrl_SetCurSel(parentControl,index);
+    if (TESDialog::Subwindow* subwindow = (TESDialog::Subwindow*)TESTabControl::GetCurSelData(parentControl))
+    {
+        for (BSSimpleList<HWND>::Node* node = &subwindow->controls.firstNode; node && node->data; node = node->next)
+        {
+            ShowWindow(node->data, true);  // show controls
+        } 
+    }
+    return curSel;
+}
+bool TabCollection::HandleTabControlMessage(HWND dialog, UINT uMsg, WPARAM wParam, LPARAM lParam, LRESULT& result)
+{
+    if (uMsg != WM_NOTIFY) return false; // not a notify message
+    NMHDR* nmhdr = (NMHDR*)lParam; 
+    if (nmhdr->hwndFrom != parentControl) return false; // not from parent tab control
+    switch(nmhdr->code)
+    {
+    case TCN_SELCHANGING:
+    case TCN_SELCHANGE:
+    {
+        if (TESDialog::Subwindow* subwindow = (TESDialog::Subwindow*)TESTabControl::GetCurSelData(nmhdr->hwndFrom))
+        {
+            for (BSSimpleList<HWND>::Node* node = &subwindow->controls.firstNode; node && node->data; node = node->next)
+            {
+                ShowWindow(node->data, nmhdr->code == TCN_SELCHANGE);  // show/hide controls
+            }
+        }
+        result = 0; return true;
+    }
+    default:
+        return false;
+    }
+}
 /************************* Insertion mark object **********************************/
 ListViewInsertionMark::ListViewInsertionMark(HWND hListView) : listView(hListView), markIndex(-1), markAfter(false) {}
 void ListViewInsertionMark::SetMark(int index, bool after)

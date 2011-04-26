@@ -28,6 +28,7 @@ void EffectItemList::RemoveEffect(const EffectItem* item)
 {
     EffectItem* itm = const_cast<EffectItem*>(item);
     if (itm && Find(itm) && itm->GetHostility() == Magic::kHostility_Hostile) hostileCount--;  // increment cached hostile effect count
+        // NOTE - hostileCount is *not* updated when EffectItem or EffectSetting hostility changes, and does not exclude 'disabled' effects
     Remove(itm);   // remove item entry from list
     itm->SetParentList(0);    // clear item parent
 }
@@ -36,6 +37,7 @@ void EffectItemList::AddEffect(EffectItem* item)
     item->SetParentList(this);    // set item parent
     PushBack(item); // append to effect list
     if (item->GetHostility() == Magic::kHostility_Hostile) hostileCount++;  // increment cached hostile effect count
+        // NOTE - hostileCount is *not* updated when EffectItem or EffectSetting hostility changes, and does not exclude 'disabled' effects
 }
 void EffectItemList::ClearEffects()
 {   
@@ -175,7 +177,23 @@ void EffectItemList::CopyFromVanilla(::EffectItemList* source, bool clearList)
         // clear now-empty source effect list
         source->Clear(); 
         source->hostileCount = 0;
+        // destroy filter effect in CS by directly invoking vanilla destructor
+        #ifndef OBLIVION
+        source->filterEffect.::EffectSetting::~EffectSetting(); 
+        #endif  
     }
+}
+// methods - aggregate properties
+UInt32 EffectItemList::GetAggregateHostilityMask()
+{
+    UInt32 state = 0;
+    for (Node* node = &firstNode; node && node->data; node = node->next)
+    {
+        // NOTE - don't check 'disabled' flag, because updates to hostileCount don't check it
+        EffectItem* item = (EffectItem*)node->data;
+        if (!item->GetMgefFlag(EffectSetting::kMgefFlagShift_Disabled)) state |= item->GetHostility(); // ignore 'disabled' effects
+    }
+    return state;
 }
 
 // methods - serialization

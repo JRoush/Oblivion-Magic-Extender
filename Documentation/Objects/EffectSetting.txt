@@ -12,8 +12,9 @@ Effect Setting:
                                             Since effect codes may be stored in script variables, a function must be provided for scripters
                                             to resolve a stored code properly.
             -   0xFFFFFFFF: Invalid code.
-    -	FLAGS:  Disabled -  Effect is ignored in aggregate qualities of magic items (magicka, hostility, school, mastery, etc.)
+    -	FLAGS:  Disabled -  Effect is ignored in aggregate qualities of magic items (magicka, strongest item)
                             Vanilla behavior also disables spell casting (DEP). 
+                            (RSH) extend to aggregate hostility
     -	FLAGS:  Spellmaking,Enchanting,NoIngredients
     -   FLAGS:  NoRecast - what does this do?        
 	-	FLAGS:  UnknownF  - what does this do?  

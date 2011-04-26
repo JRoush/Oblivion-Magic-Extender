@@ -44,6 +44,7 @@ public:
     //_LOCAL bool                 HasEffectWithFlag(UInt32 mgefFlag); // run flag check through effectitem overrides, just for comleteness
     //_LOCAL bool                 HasHostileEffect(); // forward to MagicItemEx hostility check
     //_LOCAL bool                 HasAllHostileEffects(); // forawrd to MagicItemEx hostility check
+    _LOCAL UInt32               GetAggregateHostilityMask();    // gets a mask of effect item hostilities (ignores hostileCount)
     //_LOCAL EffectItem*          GetStrongestEffect(UInt32 range = Magic::kRange__MAX, bool areaRequired = false); //
                                   // don't modify directly, but patch calls to implement appropriate MagicItemEx override fields
     #ifdef OBLIVION        

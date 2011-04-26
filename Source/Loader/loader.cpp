@@ -152,6 +152,7 @@ void OBSEMessageHandler(OBSEMessagingInterface::Message* msg)
         // request a CSE interface
         _VMESSAGE("Requesting CSE interface ... ");
         g_messagingIntfc->Dispatch(g_pluginHandle, 'CSEI', NULL, 0, "CSE");
+        // TODO - (re)patch form vtbls, as RuntimeEditorIDs and other plugins may have altered them
         break;
 	default:
 		_VMESSAGE("Received OBSE message type=%i from '%s' w/ data <%p> len=%04X", msg->type, msg->sender, msg->data, msg->dataLen);

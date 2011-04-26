@@ -1,7 +1,8 @@
 #include "OBME/EffectSetting.h"
 #include "OBME/EffectHandlers/EffectHandler.h"
-#include "API/Magic/MagicItemForm.h" // TODO - replace with OBME/MagicItemForm.h
-#include "API/Magic/MagicItemObject.h" // TODO - replace with OBME/MagicItemForm.h
+#include "OBME/SpellItem.h"
+#include "API/Magic/MagicItemForm.h" // TODO - replace with OBME::MagicItemForms
+#include "API/Magic/MagicItemObject.h" // TODO - replace with OBME::MagicItemObjects
 
 #include "API/TES/TESDataHandler.h"
 #include "API/TESFiles/TESFile.h"
@@ -21,14 +22,12 @@ namespace OBME {
 // memory patch & hook addresses
 #ifdef OBLIVION // bitmask of virtual methods that need to be manually copied from OBME vtbl to vanilla vtbl
     const UInt32 TESForm_PatchMethods[2] = { 0x28000290, 0x00006000 };
+    const UInt32 TESForm_VtblSize = 0xDC;
 #else
     const UInt32 TESForm_PatchMethods[3] = { 0x50052000, 0xE000C000, 0x000032E8 };
+    const UInt32 TESForm_VtblSize = 0x138;
 #endif
 memaddr TESForm_Vtbl                            (0x00A32B14,0x0095C914);    // EffectSetting::TESFormIDListView::{vtbl}
-memaddr TESModel_Vtbl                           (0x00A32AF0,0x0095C8C4);    // EffectSetting::TESModel::{vtbl}
-memaddr TESFullName_Vtbl                        (0x00A32AC4,0x0095C850);    // EffectSetting::TESFullName::{vtbl}
-memaddr TESDescription_Vtbl                     (0x00A32AD8,0x0095C888);    // EffectSetting::TESDecription::{vtbl}
-memaddr TESIcon_Vtbl                            (0x00A32AA8,0x0095C804);    // EffectSetting::TESIcon::{vtbl}
 memaddr EffectSetting_Create                    (0x004165E0,0x0);
 memaddr EffectSettingCollection_Add_Hook        (0x00417220,0x0056AC40);
 memaddr EffectSettingCollection_AddLast_Hook    (0x00418DAA,0x0056C85A);
@@ -42,6 +41,19 @@ memaddr TESDataHandler_AddForm_JumpTable        (0x0       ,0x00481CB0); // form
 memaddr TESDataHandler_AddForm_JumpPatch        (0x0       ,0x00481D58); // entry for MGEF in form type switch jump table
 
 // constructor, destructor
+void PatchEffectSettingFormVtbl(void* obmeFormVtbl)
+{
+    // copy all methods from vanilla TESForm::vtbl to the compiler-generated vtbl, except those that are explicitly overriden
+    _MESSAGE("Patching Game/CS TESFormIDListView vtbl from <%p>",obmeFormVtbl);
+    memaddr thisVtbl((UInt32)obmeFormVtbl);
+    gLog.Indent();
+    for (int i = 0; i < TESForm_VtblSize/4; i++)
+    {
+        if ((TESForm_PatchMethods[i/0x20] >> (i%0x20)) & 1) { _VMESSAGE("Offset 0x%04X *not* patched",i*4); } 
+        else thisVtbl.SetVtblEntry(i*4,TESForm_Vtbl.GetVtblEntry(i*4));
+    }        
+    gLog.Outdent(); 
+}
 EffectSetting::EffectSetting()
 : ::EffectSetting(), MagicGroupList(), effectHandler(0), mgefObmeFlags(0), costCallback(0), dispelFactor(1.0)
 {    
@@ -49,34 +61,10 @@ EffectSetting::EffectSetting()
 
     if (static bool runonce = true)
     {
-        // patch up Game/CS EffectSetting::TESForm vtbl with methods overwritten by OBME  
-        // this is necessary for compatibility with e.g. RuntimeEditorIDs, which also patches the vtbl
-        // also, it avoids having to do the reverse - patching the compiler generated vtbl with pointers to still undecoded methods
-        memaddr thisvtbl = (UInt32)memaddr::GetObjectVtbl(this);
-        _MESSAGE("Patching Game/CS TESFormIDListView vtbl from <%p>",thisvtbl);
-        gLog.Indent();
-        for (int i = 0; i < sizeof(TESForm_PatchMethods)*0x8; i++)
-        {
-            if ((TESForm_PatchMethods[i/0x20] >> (i%0x20)) & 1)
-            {
-                TESForm_Vtbl.SetVtblEntry(i*4,thisvtbl.GetVtblEntry(i*4));
-                _VMESSAGE("Patched Offset 0x%04X",i*4);
-            }
-        }        
-        // replace Game/CS RTTI info for EffectSetting::TESForm with compiler-generated RTTI
-        TESForm_Vtbl.SetVtblEntry(-4,thisvtbl.GetVtblEntry(-4));
-        _MESSAGE("Patching RTTI info",thisvtbl);
-        gLog.Outdent(); 
+        // patch form vtbl
+        PatchEffectSettingFormVtbl(memaddr::GetObjectVtbl(this));
         runonce  =  false;
     }
-
-    // replace compiler-generated EffectSetting::TESForm vtbl with existing game/CS vtbl
-    // no known reason to replace other vtbls; I don't think any other mods patch them, and they are fully decoded
-    TESForm_Vtbl.SetObjectVtbl(this);    
-        //TESModel_Vtbl.SetObjectVtbl(dynamic_cast<TESModel*>(this));
-        //TESFullName_Vtbl.SetObjectVtbl(dynamic_cast<TESFullName*>(this));
-        //TESDescription_Vtbl.SetObjectVtbl(dynamic_cast<TESDescription*>(this));
-        //TESIcon_Vtbl.SetObjectVtbl(dynamic_cast<TESIcon*>(this));
 
     // game constructor uses some odd initialization values
     // NOTE: be *very* careful about changing default initializations
